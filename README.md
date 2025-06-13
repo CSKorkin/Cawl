@@ -37,5 +37,3 @@ Below is a high‑level task breakdown for building the simulator:
    - Record the chosen pairings and tables for later review.
 6. **Styling and UX**
    - Improve the visual presentation and colour‑coding.
-
-This repository currently only contains boilerplate code to get started.
