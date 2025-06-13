@@ -7,4 +7,18 @@ function setupArmySelection() {
     });
   });
 }
-document.addEventListener('DOMContentLoaded', setupArmySelection);
+
+function setupAverageToggle() {
+  const button = document.getElementById('toggle-averages');
+  const table = document.querySelector('.matrix-table');
+  if (!button || !table) return;
+  button.addEventListener('click', () => {
+    table.classList.toggle('show-averages');
+    button.textContent = table.classList.contains('show-averages') ? 'Hide Averages' : 'Show Averages';
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  setupArmySelection();
+  setupAverageToggle();
+});

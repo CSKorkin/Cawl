@@ -35,5 +35,16 @@ def singleplayer():
     team_a = load_armies()
     team_b = load_armies()
     matrix = PairingMatrix.random(team_a)
-    return render_template('pairings.html', team_a=team_a, team_b=team_b, matrix=matrix.matrix)
+    row_avgs = matrix.matrix.mean(axis=1).round(1).tolist()
+    col_avgs = matrix.matrix.mean(axis=0).round(1).tolist()
+    overall_avg = round(matrix.matrix.mean(), 1)
+    return render_template(
+        'pairings.html',
+        team_a=team_a,
+        team_b=team_b,
+        matrix=matrix.matrix,
+        row_avgs=row_avgs,
+        col_avgs=col_avgs,
+        overall_avg=overall_avg,
+    )
 

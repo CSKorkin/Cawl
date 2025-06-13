@@ -5,6 +5,8 @@
 {% block content %}
 <h1>Singleplayer Mode</h1>
 
+<button id="toggle-averages">Show Averages</button>
+
 <table class="matrix-table">
     <thead>
         <tr>
@@ -15,6 +17,7 @@
                 <div class="army-name">{{ army.name }}</div>
             </th>
             {% endfor %}
+            <th class="avg-cell">Avg</th>
         </tr>
     </thead>
     <tbody>
@@ -27,8 +30,16 @@
             {% for val in row %}
             <td class="{% if val <= 4 %}r{% elif val <= 8 %}o{% elif val <= 11 %}y{% elif val <= 15 %}lg{% else %}dg{% endif %}">{{ val }}</td>
             {% endfor %}
+            <td class="avg-cell row-avg">{{ row_avgs[loop.index0] }}</td>
         </tr>
         {% endfor %}
+        <tr class="avg-row">
+            <th class="avg-cell">Avg</th>
+            {% for val in col_avgs %}
+            <td class="avg-cell col-avg">{{ val }}</td>
+            {% endfor %}
+            <td class="avg-cell overall-avg">{{ overall_avg }}</td>
+        </tr>
     </tbody>
 </table>
 
