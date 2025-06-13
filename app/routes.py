@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, current_app
+from flask import Blueprint, render_template, current_app, request
 from .simulator import Army, PairingMatrix
 import os
 import random
@@ -45,4 +45,37 @@ def singleplayer():
         row_avgs=row_avgs,
         col_avgs=col_avgs,
     )
+
+
+@main.route('/custom', methods=['GET', 'POST'])
+def custom_setup():
+    armies = load_armies(count=None)
+    if request.method == 'POST':
+        team_a_idxs = [int(request.form.get(f'team_a_{i}', 0)) for i in range(8)]
+        team_b_idxs = [int(request.form.get(f'team_b_{i}', 0)) for i in range(8)]
+        team_a = [armies[idx % len(armies)] for idx in team_a_idxs]
+        team_b = [armies[idx % len(armies)] for idx in team_b_idxs]
+        matrix = []
+        for i in range(8):
+            row = []
+            for j in range(8):
+                val = request.form.get(f'cell_{i}_{j}', '10')
+                try:
+                    row.append(int(val))
+                except ValueError:
+                    row.append(10)
+            matrix.append(row)
+        import numpy as np
+        row_avgs = np.array(matrix).mean(axis=1).round(1).tolist()
+        col_avgs = np.array(matrix).mean(axis=0).round(1).tolist()
+        return render_template(
+            'pairings.html',
+            team_a=team_a,
+            team_b=team_b,
+            matrix=matrix,
+            row_avgs=row_avgs,
+            col_avgs=col_avgs,
+        )
+
+    return render_template('custom.html', armies=armies)
 
