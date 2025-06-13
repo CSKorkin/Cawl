@@ -5,22 +5,25 @@
 {% block content %}
 <h1>Singleplayer Mode</h1>
 
-<div class="team team-a">
-    <h2>Team A</h2>
-    <div class="army-row">
-        {% for army in team_a %}
-        <div class="army-slot" data-index="{{ loop.index0 }}">
-            <img src="https://via.placeholder.com/60" alt="{{ army.name }}">
-            <div>{{ army.name }}</div>
-        </div>
-        {% endfor %}
-    </div>
-</div>
-
 <table class="matrix-table">
+    <thead>
+        <tr>
+            <th></th>
+            {% for army in team_b %}
+            <th class="army-cell">
+                <img src="{{ url_for('static', filename=army.icon) }}" alt="{{ army.name }}" class="army-icon">
+                <div class="army-name">{{ army.name }}</div>
+            </th>
+            {% endfor %}
+        </tr>
+    </thead>
     <tbody>
         {% for row in matrix %}
         <tr>
+            <th class="army-cell">
+                <img src="{{ url_for('static', filename=team_a[loop.index0].icon) }}" alt="{{ team_a[loop.index0].name }}" class="army-icon">
+                <div class="army-name">{{ team_a[loop.index0].name }}</div>
+            </th>
             {% for val in row %}
             <td class="{% if val <= 4 %}r{% elif val <= 8 %}o{% elif val <= 11 %}y{% elif val <= 15 %}lg{% else %}dg{% endif %}">{{ val }}</td>
             {% endfor %}
@@ -29,17 +32,6 @@
     </tbody>
 </table>
 
-<div class="team team-b">
-    <h2>Team B</h2>
-    <div class="army-row">
-        {% for army in team_b %}
-        <div class="army-slot" data-index="{{ loop.index0 }}">
-            <img src="https://via.placeholder.com/60" alt="{{ army.name }}">
-            <div>{{ army.name }}</div>
-        </div>
-        {% endfor %}
-    </div>
-</div>
 
 <div class="log-panel">
     <h2>Log</h2>

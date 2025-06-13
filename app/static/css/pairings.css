@@ -9,8 +9,23 @@ body {
 .matrix-table td, .matrix-table th {
     border: 1px solid #ccc;
     padding: 5px;
-    width: 40px;
+    width: 60px;
+    height: 60px;
     text-align: center;
+    vertical-align: middle;
+}
+.army-cell {
+    width: 90px;
+}
+.army-icon {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    display: block;
+    margin: 0 auto 4px auto;
+}
+.army-name {
+    font-size: 12px;
 }
 .r { background-color: #ffb3b3; }
 .o { background-color: #ffc966; }
