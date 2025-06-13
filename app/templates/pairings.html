@@ -5,6 +5,12 @@
 {% block content %}
 <h1>Singleplayer Mode</h1>
 
+<a href="{{ url_for('main.index') }}" id="back-btn">&#8592;</a>
+<div id="end-buttons">
+    <button id="reset-btn">Reset</button>
+    <button id="new-btn">New Pairing</button>
+</div>
+
 <button id="toggle-averages">Show Averages</button>
 
 <table class="matrix-table">
@@ -89,12 +95,6 @@
     {% for i in range(8) %}
     <div class="pair-slot empty"></div>
     {% endfor %}
-</div>
-
-<div id="end-buttons">
-    <button id="reset-btn">Reset</button>
-    <button id="new-btn">New Pairing</button>
-    <a href="{{ url_for('main.index') }}" id="back-btn">Back</a>
 </div>
 
 <div class="log-panel">

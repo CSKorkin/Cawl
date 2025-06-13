@@ -334,6 +334,8 @@ function resetPairings() {
   inFinalRound = false;
   document.querySelectorAll('.confirm-btn').forEach(btn => btn.style.display = 'none');
   document.getElementById('end-buttons').style.display = 'none';
+  const back = document.getElementById('back-btn');
+  if (back) back.style.display = 'none';
   setupArmySelection();
 }
 
@@ -349,4 +351,6 @@ function finishPairings() {
   document.getElementById('user-heading').style.display = 'none';
   document.getElementById('opp-heading').style.display = 'none';
   document.getElementById('end-buttons').style.display = 'block';
+  const back = document.getElementById('back-btn');
+  if (back) back.style.display = 'block';
 }
