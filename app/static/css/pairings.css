@@ -182,3 +182,9 @@ body {
     color: #555;
     display: none;
 }
+body.finished #pairings-heading {
+    transform: translateY(-30px);
+}
+body.finished .log-panel {
+    transform: translateY(30px);
+}

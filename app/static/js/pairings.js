@@ -325,6 +325,14 @@ function resetPairings() {
   document.getElementById('opponent-hand').innerHTML = origOppHandHTML;
   document.getElementById('pairings-board').innerHTML = origBoardHTML;
   document.getElementById('log').innerHTML = '';
+  document.getElementById('user-hand').style.display = '';
+  document.getElementById('opponent-hand').style.display = '';
+  const area = document.getElementById('pair-area');
+  if (area) area.style.display = '';
+  const conf = document.getElementById('confirm-buttons');
+  if (conf) conf.style.display = '';
+  document.getElementById('user-heading').style.display = '';
+  document.getElementById('opp-heading').style.display = '';
   resetCentral();
   phase = 'defender';
   attackerCards = [];
@@ -336,6 +344,7 @@ function resetPairings() {
   document.getElementById('end-buttons').style.display = 'none';
   const back = document.getElementById('back-btn');
   if (back) back.style.display = 'none';
+  document.body.classList.remove('finished');
   setupArmySelection();
 }
 
@@ -353,4 +362,5 @@ function finishPairings() {
   document.getElementById('end-buttons').style.display = 'block';
   const back = document.getElementById('back-btn');
   if (back) back.style.display = 'block';
+  document.body.classList.add('finished');
 }
