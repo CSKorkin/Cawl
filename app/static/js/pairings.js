@@ -30,7 +30,7 @@ function setupArmySelection() {
   // Opponent attacker selection (attach once while in opponent-hand)
   document.querySelectorAll('#opponent-hand .army-slot').forEach((slot) => {
     slot.addEventListener('click', () => {
-      if (phase === 'accept' && slot.parentElement.id === 'opponent-attackers') {
+      if (phase === 'accept' && slot.closest('#opponent-attackers')) {
         clearSelections('#opponent-attackers');
         slot.classList.add('selected');
         document.getElementById('confirm-accept').style.display = 'inline-block';
