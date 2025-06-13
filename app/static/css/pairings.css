@@ -204,9 +204,9 @@ body.finished #pairings-heading {
     transform: translateY(0);
 }
 body.finished .log-panel {
-    transform: translateY(30px);
+    transform: translateY(130px);
 }
 body.finished #pairings-board,
 body.finished #end-buttons {
-    margin-top: 15px;
+    margin-top: 115px;
 }
