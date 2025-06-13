@@ -123,6 +123,7 @@ function moveCard(card, targetId) {
   if (target) {
     target.innerHTML = '';
     target.appendChild(card);
+    adjustPairNames();
   }
 }
 
@@ -316,7 +317,7 @@ function addPairing(cardA, cardB) {
   slot.appendChild(cardB);
   slot.dataset.a = cardA.dataset.name;
   slot.dataset.b = cardB.dataset.name;
-  adjustPairBoardNames();
+  adjustPairNames();
 }
 
 function resetCentral() {
@@ -341,7 +342,7 @@ function resetPairings() {
   document.getElementById('user-hand').innerHTML = origUserHandHTML;
   document.getElementById('opponent-hand').innerHTML = origOppHandHTML;
   document.getElementById('pairings-board').innerHTML = origBoardHTML;
-  adjustPairBoardNames();
+  adjustPairNames();
   document.getElementById('log').innerHTML = '';
   const panel = document.querySelector('.log-panel');
   if (panel) panel.style.display = '';
@@ -372,7 +373,7 @@ function resetPairings() {
 
 function finishPairings() {
   showScores();
-  adjustPairBoardNames();
+  adjustPairNames();
   restoreMatrix();
   document.getElementById('user-hand').style.display = 'none';
   document.getElementById('opponent-hand').style.display = 'none';
@@ -388,12 +389,14 @@ function finishPairings() {
   document.body.classList.add('finished');
 }
 
-function adjustPairBoardNames() {
-  document.querySelectorAll('#pairings-board .army-name').forEach(name => {
-    if (name.scrollHeight > 14) {
-      name.style.marginTop = '-4px';
-    } else {
-      name.style.marginTop = '0';
-    }
-  });
+function adjustPairNames() {
+  document
+    .querySelectorAll('#pairings-board .army-name, #pair-area .army-name')
+    .forEach(name => {
+      if (name.scrollHeight > 14) {
+        name.style.marginTop = '-4px';
+      } else {
+        name.style.marginTop = '0';
+      }
+    });
 }
