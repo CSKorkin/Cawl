@@ -87,8 +87,8 @@ body {
 
 .pair-slot {
     border: 1px dashed #999;
-    width: 80px;
-    height: 100px;
+    width: 100px;
+    height: 120px;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -114,10 +114,10 @@ body {
 }
 
 .pair-slot img {
-    width: 60px;
-    height: 60px;
+    width: 80px;
+    height: 80px;
     object-fit: cover;
-    margin-top: 18px;
+    margin-top: 20px;
 }
 
 .confirm-btn {
@@ -140,4 +140,59 @@ body {
 
 .pair-board .pair-slot.empty {
     opacity: 0.5;
+}
+
+.score-overlay {
+    position: absolute;
+    top: -54px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 24px;
+    font-weight: bold;
+    font-family: 'Orbitron', sans-serif;
+}
+
+.score-overlay.r-text { color: #d60000; }
+.score-overlay.o-text { color: #e67e00; }
+.score-overlay.y-text { color: #b3b300; }
+.score-overlay.lg-text { color: #2fa02f; }
+.score-overlay.dg-text { color: #006600; }
+
+#end-buttons {
+    margin-top: 10px;
+    margin-bottom: 20px;
+    display: none;
+    text-align: center;
+    font-family: 'Orbitron', sans-serif;
+}
+
+#end-buttons button {
+    margin: 0 10px;
+    font-size: 20px;
+    padding: 8px 16px;
+    font-family: inherit;
+}
+
+#back-btn {
+    position: absolute;
+    left: 10px;
+    top: 10px;
+    font-size: 32px;
+    text-decoration: none;
+    color: #555;
+    display: none;
+}
+#toggle-log {
+    margin-top: 5px;
+    font-family: 'Orbitron', sans-serif;
+}
+body.finished #pairings-heading {
+    transform: translateY(-30px);
+}
+body.finished .log-panel {
+    transform: translateY(30px);
+}
+body.finished #pairings-board,
+body.finished #end-buttons {
+    margin-top: 15px;
 }

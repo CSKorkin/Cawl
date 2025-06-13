@@ -41,7 +41,7 @@ def singleplayer():
         'pairings.html',
         team_a=team_a,
         team_b=team_b,
-        matrix=matrix.matrix,
+        matrix=matrix.matrix.tolist(),
         row_avgs=row_avgs,
         col_avgs=col_avgs,
     )
