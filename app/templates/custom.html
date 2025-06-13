@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+{% block title %}Custom Setup - 40k Pairings Simulator{% endblock %}
+
+{% block content %}
+<h1>Custom Matrix Setup</h1>
+<form method="post">
+    <table class="matrix-table">
+        <tbody>
+            {% for i in range(8) %}
+            <tr>
+                {% for j in range(8) %}
+                <td><input type="number" name="cell_{{i}}_{{j}}" value="10" min="2" max="18" style="width:40px;"></td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <h2>Team A Armies</h2>
+    {% for i in range(8) %}
+    <select name="team_a_{{i}}">
+        {% for army in armies %}
+        <option value="{{ loop.index0 }}">{{ army.name }}</option>
+        {% endfor %}
+    </select>
+    {% endfor %}
+    <h2>Team B Armies</h2>
+    {% for i in range(8) %}
+    <select name="team_b_{{i}}">
+        {% for army in armies %}
+        <option value="{{ loop.index0 }}">{{ army.name }}</option>
+        {% endfor %}
+    </select>
+    {% endfor %}
+    <div style="margin-top:20px;">
+        <button type="submit">Confirm</button>
+    </div>
+</form>
+{% endblock %}
