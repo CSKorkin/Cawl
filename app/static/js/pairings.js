@@ -69,6 +69,21 @@ function setupAverageToggle() {
   });
 }
 
+function setupLogToggle() {
+  const button = document.getElementById('toggle-log');
+  const panel = document.querySelector('.log-panel');
+  if (!button || !panel) return;
+  button.addEventListener('click', () => {
+    if (panel.style.display === 'none') {
+      panel.style.display = '';
+      button.textContent = 'Hide Log';
+    } else {
+      panel.style.display = 'none';
+      button.textContent = 'Show Log';
+    }
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   origMatrix = window.origMatrix || [];
   origTeamA = window.origTeamA || [];
@@ -82,6 +97,7 @@ document.addEventListener('DOMContentLoaded', () => {
   origBoardHTML = document.getElementById('pairings-board').innerHTML;
   setupArmySelection();
   setupAverageToggle();
+  setupLogToggle();
   setupConfirmButtons();
   const resetBtn = document.getElementById('reset-btn');
   if (resetBtn) resetBtn.addEventListener('click', resetPairings);
@@ -325,6 +341,10 @@ function resetPairings() {
   document.getElementById('opponent-hand').innerHTML = origOppHandHTML;
   document.getElementById('pairings-board').innerHTML = origBoardHTML;
   document.getElementById('log').innerHTML = '';
+  const panel = document.querySelector('.log-panel');
+  if (panel) panel.style.display = '';
+  const toggleBtn = document.getElementById('toggle-log');
+  if (toggleBtn) toggleBtn.textContent = 'Hide Log';
   document.getElementById('user-hand').style.display = '';
   document.getElementById('opponent-hand').style.display = '';
   const area = document.getElementById('pair-area');
