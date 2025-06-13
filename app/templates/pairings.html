@@ -41,7 +41,7 @@
         </tr>
     </tbody>
 </table>
-<h2>Your Armies</h2>
+<h2 id="user-heading">Your Armies</h2>
 <div id="user-hand" class="hand">
     {% for army in team_a %}
     <div class="army-slot" data-name="{{ army.name }}">
@@ -51,7 +51,7 @@
     {% endfor %}
 </div>
 
-<div class="pair-area">
+<div class="pair-area" id="pair-area">
     <div class="side" id="user-side">
         <div id="user-defender" class="pair-slot defender-slot" data-label="Your Defender"></div>
         <div id="opponent-attackers">
@@ -68,13 +68,13 @@
     </div>
 </div>
 
-<div class="confirm-buttons">
+<div class="confirm-buttons" id="confirm-buttons">
     <button id="confirm-defender" class="confirm-btn">Confirm Defender</button>
     <button id="confirm-attackers" class="confirm-btn">Confirm Attackers</button>
     <button id="confirm-accept" class="confirm-btn">Confirm Pairing</button>
 </div>
 
-<h2>Opponent Armies</h2>
+<h2 id="opp-heading">Opponent Armies</h2>
 <div id="opponent-hand" class="hand">
     {% for army in team_b %}
     <div class="army-slot" data-name="{{ army.name }}">
@@ -89,6 +89,12 @@
     {% for i in range(8) %}
     <div class="pair-slot empty"></div>
     {% endfor %}
+</div>
+
+<div id="end-buttons">
+    <button id="reset-btn">Reset</button>
+    <button id="new-btn">New Pairing</button>
+    <a href="{{ url_for('main.index') }}" id="back-btn">Back</a>
 </div>
 
 <div class="log-panel">

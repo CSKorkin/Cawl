@@ -11,6 +11,10 @@ let origTeamB = [];
 let matrixData = [];
 let teamAList = [];
 let teamBList = [];
+let origMatrixTable = null;
+let origUserHandHTML = '';
+let origOppHandHTML = '';
+let origBoardHTML = '';
 
 function scoreClass(val) {
   if (val <= 4) return 'r-text';
@@ -56,9 +60,10 @@ function setupArmySelection() {
 
 function setupAverageToggle() {
   const button = document.getElementById('toggle-averages');
-  const table = document.querySelector('.matrix-table');
-  if (!button || !table) return;
+  if (!button) return;
   button.addEventListener('click', () => {
+    const table = document.querySelector('.matrix-table');
+    if (!table) return;
     table.classList.toggle('show-averages');
     button.textContent = table.classList.contains('show-averages') ? 'Hide Averages' : 'Show Averages';
   });
@@ -71,9 +76,17 @@ document.addEventListener('DOMContentLoaded', () => {
   matrixData = origMatrix.map(r => r.slice());
   teamAList = origTeamA.slice();
   teamBList = origTeamB.slice();
+  origMatrixTable = document.querySelector('.matrix-table').cloneNode(true);
+  origUserHandHTML = document.getElementById('user-hand').innerHTML;
+  origOppHandHTML = document.getElementById('opponent-hand').innerHTML;
+  origBoardHTML = document.getElementById('pairings-board').innerHTML;
   setupArmySelection();
   setupAverageToggle();
   setupConfirmButtons();
+  const resetBtn = document.getElementById('reset-btn');
+  if (resetBtn) resetBtn.addEventListener('click', resetPairings);
+  const newBtn = document.getElementById('new-btn');
+  if (newBtn) newBtn.addEventListener('click', () => window.location.reload());
 });
 
 function setupConfirmButtons() {
@@ -275,7 +288,7 @@ function confirmAccept() {
   inFinalRound = false;
   document.getElementById('confirm-accept').style.display = 'none';
   if (phase === 'done') {
-    showScores();
+    finishPairings();
   }
 }
 
@@ -294,4 +307,46 @@ function resetCentral() {
     const el = document.getElementById(id);
     if (el) el.innerHTML = '';
   });
+}
+
+function restoreMatrix() {
+  const current = document.querySelector('.matrix-table');
+  if (current && origMatrixTable) {
+    current.replaceWith(origMatrixTable.cloneNode(true));
+  }
+  matrixData = origMatrix.map(r => r.slice());
+  teamAList = origTeamA.slice();
+  teamBList = origTeamB.slice();
+}
+
+function resetPairings() {
+  restoreMatrix();
+  document.getElementById('user-hand').innerHTML = origUserHandHTML;
+  document.getElementById('opponent-hand').innerHTML = origOppHandHTML;
+  document.getElementById('pairings-board').innerHTML = origBoardHTML;
+  document.getElementById('log').innerHTML = '';
+  resetCentral();
+  phase = 'defender';
+  attackerCards = [];
+  oppAttackerCards = [];
+  defenderCard = null;
+  oppDefenderCard = null;
+  inFinalRound = false;
+  document.querySelectorAll('.confirm-btn').forEach(btn => btn.style.display = 'none');
+  document.getElementById('end-buttons').style.display = 'none';
+  setupArmySelection();
+}
+
+function finishPairings() {
+  showScores();
+  restoreMatrix();
+  document.getElementById('user-hand').style.display = 'none';
+  document.getElementById('opponent-hand').style.display = 'none';
+  const area = document.getElementById('pair-area');
+  if (area) area.style.display = 'none';
+  const conf = document.getElementById('confirm-buttons');
+  if (conf) conf.style.display = 'none';
+  document.getElementById('user-heading').style.display = 'none';
+  document.getElementById('opp-heading').style.display = 'none';
+  document.getElementById('end-buttons').style.display = 'block';
 }

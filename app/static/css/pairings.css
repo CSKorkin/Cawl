@@ -144,7 +144,7 @@ body {
 
 .score-overlay {
     position: absolute;
-    top: -24px;
+    top: -54px;
     left: 50%;
     transform: translateX(-50%);
     font-size: 24px;
@@ -157,3 +157,12 @@ body {
 .score-overlay.y-text { color: #b3b300; }
 .score-overlay.lg-text { color: #2fa02f; }
 .score-overlay.dg-text { color: #006600; }
+
+#end-buttons {
+    margin-top: 20px;
+    display: none;
+}
+
+#end-buttons button, #end-buttons a {
+    margin: 0 5px;
+}
