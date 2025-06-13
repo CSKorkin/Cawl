@@ -4,6 +4,7 @@ let defenderCard = null;
 let attackerCards = [];
 let oppDefenderCard = null;
 let oppAttackerCards = [];
+let inFinalRound = false;
 
 function clearSelections(container) {
   document.querySelectorAll(container + ' .selected').forEach((el) => {
@@ -107,6 +108,9 @@ function confirmAttackers() {
   document.getElementById('confirm-attackers').style.display = 'none';
   phase = 'accept';
 
+  inFinalRound =
+    document.querySelectorAll('#pairings-board .pair-slot.empty').length === 4;
+
   // Opponent attackers
   oppAttackerCards = [];
   for (let i = 1; i <= 2; i++) {
@@ -117,6 +121,14 @@ function confirmAttackers() {
     }
   }
 
+  if (inFinalRound) {
+    const lastUser = document.querySelector('#user-hand .army-slot');
+    const lastOpp = document.querySelector('#opponent-hand .army-slot');
+    if (lastUser && lastOpp) {
+      addPairing(lastUser, lastOpp);
+    }
+  }
+
 }
 
 function confirmAccept() {
@@ -124,8 +136,10 @@ function confirmAccept() {
   if (!selectedOpp) return;
 
   const refusedOpp = oppAttackerCards.find(c => c !== selectedOpp);
-  if (refusedOpp) {
+  if (!inFinalRound && refusedOpp) {
     document.getElementById('opponent-hand').appendChild(refusedOpp);
+  }
+  if (refusedOpp) {
     refusedOpp.classList.remove('selected');
   }
 
@@ -135,20 +149,26 @@ function confirmAccept() {
   const oppChoiceIdx = Math.floor(Math.random() * attackerCards.length);
   const oppAcceptedUser = attackerCards[oppChoiceIdx];
   const userRefused = attackerCards.find(c => c !== oppAcceptedUser);
-  if (userRefused) {
+  if (!inFinalRound && userRefused) {
     document.getElementById('user-hand').appendChild(userRefused);
+  }
+  if (userRefused) {
     userRefused.classList.remove('selected');
   }
 
   addPairing(defenderCard, oppAccepted);
   addPairing(oppDefenderCard, oppAcceptedUser);
+  if (inFinalRound && refusedOpp && userRefused) {
+    addPairing(userRefused, refusedOpp);
+  }
 
   resetCentral();
-  phase = 'defender';
+  phase = inFinalRound ? 'done' : 'defender';
   attackerCards = [];
   oppAttackerCards = [];
   defenderCard = null;
   oppDefenderCard = null;
+  inFinalRound = false;
   document.getElementById('confirm-accept').style.display = 'none';
 }
 
