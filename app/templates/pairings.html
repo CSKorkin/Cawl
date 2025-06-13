@@ -5,6 +5,16 @@
 {% block content %}
 <h1>Singleplayer Mode</h1>
 
+<div id="ai-choice">
+    <label for="ai-select">Opponent Algorithm:</label>
+    <select id="ai-select">
+        <option value="random">Random</option>
+        <option value="basic">Basic</option>
+        <option value="advanced">Advanced</option>
+    </select>
+    <button id="choose-ai">Start</button>
+</div>
+
 <a href="{{ url_for('main.index') }}" id="back-btn">&#8592;</a>
 <div id="end-buttons">
     <button id="reset-btn">Reset</button>
