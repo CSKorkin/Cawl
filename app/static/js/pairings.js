@@ -12,6 +12,7 @@ function clearSelections(container) {
 }
 
 function setupArmySelection() {
+  // User army selection for defenders/attackers
   document.querySelectorAll('#user-hand .army-slot').forEach((slot) => {
     slot.addEventListener('click', () => {
       if (phase === 'defender') {
@@ -26,9 +27,10 @@ function setupArmySelection() {
     });
   });
 
-  document.querySelectorAll('#opponent-attackers .army-slot').forEach((slot) => {
+  // Opponent attacker selection (attach once while in opponent-hand)
+  document.querySelectorAll('#opponent-hand .army-slot').forEach((slot) => {
     slot.addEventListener('click', () => {
-      if (phase === 'accept') {
+      if (phase === 'accept' && slot.parentElement.id === 'opponent-attackers') {
         clearSelections('#opponent-attackers');
         slot.classList.add('selected');
         document.getElementById('confirm-accept').style.display = 'inline-block';
@@ -115,8 +117,6 @@ function confirmAttackers() {
     }
   }
 
-  // enable clicking opponent attackers to accept
-  setupArmySelection();
 }
 
 function confirmAccept() {
@@ -150,7 +150,6 @@ function confirmAccept() {
   defenderCard = null;
   oppDefenderCard = null;
   document.getElementById('confirm-accept').style.display = 'none';
-  setupArmySelection(); // reattach for newly moved cards
 }
 
 function addPairing(cardA, cardB) {
