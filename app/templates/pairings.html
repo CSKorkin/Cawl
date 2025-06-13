@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+
+{% block title %}Singleplayer - 40k Pairings Simulator{% endblock %}
+
+{% block content %}
+<h1>Singleplayer Mode</h1>
+
+<div class="team team-a">
+    <h2>Team A</h2>
+    <div class="army-row">
+        {% for army in team_a %}
+        <div class="army-slot" data-index="{{ loop.index0 }}">
+            <img src="https://via.placeholder.com/60" alt="{{ army.name }}">
+            <div>{{ army.name }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<table class="matrix-table">
+    <tbody>
+        {% for row in matrix %}
+        <tr>
+            {% for val in row %}
+            <td class="{% if val <= 4 %}r{% elif val <= 8 %}o{% elif val <= 11 %}y{% elif val <= 15 %}lg{% else %}dg{% endif %}">{{ val }}</td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div class="team team-b">
+    <h2>Team B</h2>
+    <div class="army-row">
+        {% for army in team_b %}
+        <div class="army-slot" data-index="{{ loop.index0 }}">
+            <img src="https://via.placeholder.com/60" alt="{{ army.name }}">
+            <div>{{ army.name }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="log-panel">
+    <h2>Log</h2>
+    <ul id="log"></ul>
+</div>
+{% endblock %}
