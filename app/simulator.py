@@ -5,6 +5,7 @@ from typing import List, Tuple
 @dataclass
 class Army:
     name: str
+    icon: str
 
 @dataclass
 class PairingMatrix:
