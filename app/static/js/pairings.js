@@ -86,6 +86,7 @@ function confirmDefender() {
   if (!selected) return;
   defenderCard = selected;
   moveCard(selected, 'user-defender');
+  selected.classList.remove('selected');
   document.getElementById('confirm-defender').style.display = 'none';
   phase = 'attackers';
 
@@ -100,6 +101,7 @@ function confirmAttackers() {
   attackerCards = Array.from(selected);
   moveCard(attackerCards[0], 'user-attacker1');
   moveCard(attackerCards[1], 'user-attacker2');
+  attackerCards.forEach(c => c.classList.remove('selected'));
   document.getElementById('confirm-attackers').style.display = 'none';
   phase = 'accept';
 
@@ -119,14 +121,21 @@ function confirmAccept() {
   if (!selectedOpp) return;
 
   const refusedOpp = oppAttackerCards.find(c => c !== selectedOpp);
-  if (refusedOpp) document.getElementById('opponent-hand').appendChild(refusedOpp);
+  if (refusedOpp) {
+    document.getElementById('opponent-hand').appendChild(refusedOpp);
+    refusedOpp.classList.remove('selected');
+  }
 
   const oppAccepted = selectedOpp;
+  oppAccepted.classList.remove('selected');
 
   const oppChoiceIdx = Math.floor(Math.random() * attackerCards.length);
   const oppAcceptedUser = attackerCards[oppChoiceIdx];
   const userRefused = attackerCards.find(c => c !== oppAcceptedUser);
-  if (userRefused) document.getElementById('user-hand').appendChild(userRefused);
+  if (userRefused) {
+    document.getElementById('user-hand').appendChild(userRefused);
+    userRefused.classList.remove('selected');
+  }
 
   addPairing(defenderCard, oppAccepted);
   addPairing(oppDefenderCard, oppAcceptedUser);
