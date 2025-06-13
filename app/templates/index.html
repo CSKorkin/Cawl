@@ -10,31 +10,46 @@
         .y { background-color: #ffff99; }
         .lg { background-color: #ccffcc; }
         .dg { background-color: #66cc66; }
-        body { font-family: Arial, sans-serif; text-align: center; }
-        .container { margin-top: 40px; }
-        img.logo { width: 200px; }
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            text-align: center;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: #fff;
+        }
+        .container {
+            margin-top: 100px;
+        }
+        img.logo {
+            width: 200px;
+            display: block;
+            margin: 0 auto 40px auto;
+        }
         a.button {
             display: inline-block;
             margin: 10px;
-            padding: 10px 20px;
-            background: #007bff;
-            color: white;
+            padding: 12px 24px;
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
             text-decoration: none;
-            border-radius: 4px;
+            border-radius: 30px;
+            backdrop-filter: blur(5px);
+            transition: background 0.3s ease;
+        }
+        a.button:hover {
+            background: rgba(255, 255, 255, 0.3);
         }
         a.button.disabled {
-            background: #aaa;
+            background: rgba(255, 255, 255, 0.1);
             cursor: not-allowed;
             pointer-events: none;
+            color: #ddd;
         }
     </style>
 </head>
 <body>
-    <h1>40k Pairings Simulator</h1>
-    <p>Placeholder for pairing interface.</p>
     <div class="container">
         <img src="{{ url_for('static', filename='logo.png') }}" alt="Cawl Logo" class="logo">
-        <h1>40k Pairings Simulator</h1>
         <div>
             <a href="{{ url_for('main.singleplayer') }}" class="button">Singleplayer</a>
             <a href="#" class="button disabled">Multiplayer</a>
