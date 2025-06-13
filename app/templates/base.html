@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{% block title %}40k Pairings Simulator{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/pairings.css') }}">
+</head>
+<body>
+    {% block content %}{% endblock %}
+    <script src="{{ url_for('static', filename='js/pairings.js') }}"></script>
+</body>
+</html>

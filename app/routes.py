@@ -9,6 +9,8 @@ def index():
 
 @main.route('/singleplayer')
 def singleplayer():
-    armies = [Army(f'Army {i+1}') for i in range(8)]
-    matrix = PairingMatrix.random(armies)
-    return render_template('singleplayer.html', matrix=matrix.matrix)
+    team_a = [Army(f'Army {i+1}') for i in range(8)]
+    team_b = [Army(f'Opponent {i+1}') for i in range(8)]
+    matrix = PairingMatrix.random(team_a)
+    return render_template('pairings.html', team_a=team_a, team_b=team_b, matrix=matrix.matrix)
+
