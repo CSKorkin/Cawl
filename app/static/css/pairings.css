@@ -63,3 +63,60 @@ body {
 .matrix-table.show-averages .avg-cell {
     display: table-cell;
 }
+
+.hand {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.pair-area {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 20px 0;
+}
+
+.pair-area .side {
+    margin: 0 20px;
+}
+
+.pair-slot {
+    border: 1px dashed #999;
+    width: 80px;
+    height: 100px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    margin: 5px;
+}
+
+.pair-slot img {
+    width: 60px;
+    height: 60px;
+    object-fit: cover;
+}
+
+.confirm-btn {
+    margin-top: 10px;
+    display: none;
+}
+
+.pair-board {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+.pair-board .pair-slot {
+    border: 1px solid #666;
+    width: 120px;
+    height: 120px;
+}
+
+.pair-board .pair-slot.empty {
+    opacity: 0.5;
+}

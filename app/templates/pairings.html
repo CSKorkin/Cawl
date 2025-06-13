@@ -41,7 +41,55 @@
         </tr>
     </tbody>
 </table>
+<h2>Your Armies</h2>
+<div id="user-hand" class="hand">
+    {% for army in team_a %}
+    <div class="army-slot" data-name="{{ army.name }}">
+        <img src="{{ url_for('static', filename=army.icon) }}" alt="{{ army.name }}">
+        <div class="army-name">{{ army.name }}</div>
+    </div>
+    {% endfor %}
+</div>
 
+<div class="pair-area">
+    <div class="side" id="user-side">
+        <div id="user-defender" class="pair-slot"></div>
+        <div id="user-attackers">
+            <div id="user-attacker1" class="pair-slot"></div>
+            <div id="user-attacker2" class="pair-slot"></div>
+        </div>
+    </div>
+    <div class="side" id="opponent-side">
+        <div id="opponent-defender" class="pair-slot"></div>
+        <div id="opponent-attackers">
+            <div id="opponent-attacker1" class="pair-slot"></div>
+            <div id="opponent-attacker2" class="pair-slot"></div>
+        </div>
+    </div>
+</div>
+
+<div class="confirm-buttons">
+    <button id="confirm-defender" class="confirm-btn">Confirm Defender</button>
+    <button id="confirm-attackers" class="confirm-btn">Confirm Attackers</button>
+    <button id="confirm-accept" class="confirm-btn">Confirm Pairing</button>
+</div>
+
+<h2>Opponent Armies</h2>
+<div id="opponent-hand" class="hand">
+    {% for army in team_b %}
+    <div class="army-slot" data-name="{{ army.name }}">
+        <img src="{{ url_for('static', filename=army.icon) }}" alt="{{ army.name }}">
+        <div class="army-name">{{ army.name }}</div>
+    </div>
+    {% endfor %}
+</div>
+
+<h2>Pairings</h2>
+<div id="pairings-board" class="pair-board">
+    {% for i in range(8) %}
+    <div class="pair-slot empty"></div>
+    {% endfor %}
+</div>
 
 <div class="log-panel">
     <h2>Log</h2>

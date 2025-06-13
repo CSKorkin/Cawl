@@ -1,9 +1,38 @@
 // Basic highlight logic for selecting armies
+let phase = 'defender';
+let defenderCard = null;
+let attackerCards = [];
+let oppDefenderCard = null;
+let oppAttackerCards = [];
+
+function clearSelections(container) {
+  document.querySelectorAll(container + ' .selected').forEach((el) => {
+    el.classList.remove('selected');
+  });
+}
+
 function setupArmySelection() {
-  document.querySelectorAll('.army-slot').forEach((slot) => {
+  document.querySelectorAll('#user-hand .army-slot').forEach((slot) => {
     slot.addEventListener('click', () => {
-      document.querySelectorAll('.army-slot').forEach(s => s.classList.remove('selected'));
-      slot.classList.add('selected');
+      if (phase === 'defender') {
+        clearSelections('#user-hand');
+        slot.classList.add('selected');
+        document.getElementById('confirm-defender').style.display = 'inline-block';
+      } else if (phase === 'attackers') {
+        slot.classList.toggle('selected');
+        const sel = document.querySelectorAll('#user-hand .selected');
+        document.getElementById('confirm-attackers').style.display = sel.length === 2 ? 'inline-block' : 'none';
+      }
+    });
+  });
+
+  document.querySelectorAll('#opponent-attackers .army-slot').forEach((slot) => {
+    slot.addEventListener('click', () => {
+      if (phase === 'accept') {
+        clearSelections('#opponent-attackers');
+        slot.classList.add('selected');
+        document.getElementById('confirm-accept').style.display = 'inline-block';
+      }
     });
   });
 }
@@ -21,4 +50,108 @@ function setupAverageToggle() {
 document.addEventListener('DOMContentLoaded', () => {
   setupArmySelection();
   setupAverageToggle();
+  setupConfirmButtons();
 });
+
+function setupConfirmButtons() {
+  const confirmDef = document.getElementById('confirm-defender');
+  const confirmAtk = document.getElementById('confirm-attackers');
+  const confirmAcc = document.getElementById('confirm-accept');
+
+  if (confirmDef)
+    confirmDef.addEventListener('click', confirmDefender);
+  if (confirmAtk)
+    confirmAtk.addEventListener('click', confirmAttackers);
+  if (confirmAcc)
+    confirmAcc.addEventListener('click', confirmAccept);
+}
+
+function moveCard(card, targetId) {
+  const target = document.getElementById(targetId);
+  if (target) {
+    target.innerHTML = '';
+    target.appendChild(card);
+  }
+}
+
+function chooseRandomCard(selector) {
+  const cards = document.querySelectorAll(selector);
+  if (cards.length === 0) return null;
+  const idx = Math.floor(Math.random() * cards.length);
+  return cards[idx];
+}
+
+function confirmDefender() {
+  const selected = document.querySelector('#user-hand .selected');
+  if (!selected) return;
+  defenderCard = selected;
+  moveCard(selected, 'user-defender');
+  document.getElementById('confirm-defender').style.display = 'none';
+  phase = 'attackers';
+
+  // Opponent defender
+  oppDefenderCard = chooseRandomCard('#opponent-hand .army-slot');
+  if (oppDefenderCard) moveCard(oppDefenderCard, 'opponent-defender');
+}
+
+function confirmAttackers() {
+  const selected = document.querySelectorAll('#user-hand .selected');
+  if (selected.length !== 2) return;
+  attackerCards = Array.from(selected);
+  moveCard(attackerCards[0], 'user-attacker1');
+  moveCard(attackerCards[1], 'user-attacker2');
+  document.getElementById('confirm-attackers').style.display = 'none';
+  phase = 'accept';
+
+  // Opponent attackers
+  oppAttackerCards = [];
+  for (let i = 1; i <= 2; i++) {
+    const card = chooseRandomCard('#opponent-hand .army-slot');
+    if (card) {
+      oppAttackerCards.push(card);
+      moveCard(card, `opponent-attacker${i}`);
+    }
+  }
+}
+
+function confirmAccept() {
+  const selectedOpp = document.querySelector('#opponent-attackers .selected');
+  if (!selectedOpp) return;
+
+  const refusedOpp = oppAttackerCards.find(c => c !== selectedOpp);
+  if (refusedOpp) document.getElementById('opponent-hand').appendChild(refusedOpp);
+
+  const oppAccepted = selectedOpp;
+
+  const oppChoiceIdx = Math.floor(Math.random() * attackerCards.length);
+  const oppAcceptedUser = attackerCards[oppChoiceIdx];
+  const userRefused = attackerCards.find(c => c !== oppAcceptedUser);
+  if (userRefused) document.getElementById('user-hand').appendChild(userRefused);
+
+  addPairing(defenderCard, oppAccepted);
+  addPairing(oppDefenderCard, oppAcceptedUser);
+
+  resetCentral();
+  phase = 'defender';
+  attackerCards = [];
+  oppAttackerCards = [];
+  defenderCard = null;
+  oppDefenderCard = null;
+  document.getElementById('confirm-accept').style.display = 'none';
+  setupArmySelection(); // reattach for newly moved cards
+}
+
+function addPairing(cardA, cardB) {
+  const slot = document.querySelector('#pairings-board .pair-slot.empty');
+  if (!slot) return;
+  slot.classList.remove('empty');
+  slot.appendChild(cardA);
+  slot.appendChild(cardB);
+}
+
+function resetCentral() {
+  ['user-defender','user-attacker1','user-attacker2','opponent-defender','opponent-attacker1','opponent-attacker2'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '';
+  });
+}
