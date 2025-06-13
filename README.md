@@ -37,3 +37,12 @@ Below is a high‑level task breakdown for building the simulator:
    - Record the chosen pairings and tables for later review.
 6. **Styling and UX**
    - Improve the visual presentation and colour‑coding.
+
+## Assets
+
+The home page styling expects two images under `app/static/`:
+
+- **noise.png** – a subtle monochrome noise texture around 300x300px used to hide gradient banding.
+- **cog.png** – a transparent PNG of a gear about 300x300px for the parallax effect.
+
+Place these files in the `app/static` directory so the references in `home.css` work correctly.

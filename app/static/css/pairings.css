@@ -1,7 +1,25 @@
 body {
+    margin: 0;
     font-family: Arial, sans-serif;
     text-align: center;
+    background: linear-gradient(180deg, #001f3f, #2d3646);
+    color: #fff;
 }
+h1, h2 { color: #c49a59; }
+a { color: #c49a59; text-decoration: none; }
+button {
+    background: rgba(45,54,70,0.6);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.2);
+    backdrop-filter: blur(3px);
+    padding: 6px 12px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+button:hover {
+    background: rgba(179,28,28,0.4);
+}
+a:hover { color: #b31c1c; }
 .matrix-table {
     margin: 20px auto;
     border-collapse: collapse;

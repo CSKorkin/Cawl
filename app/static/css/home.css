@@ -1,0 +1,104 @@
+/* Requires noise.png and cog.png in app/static for textures */
+body {
+    margin: 0;
+    font-family: 'Big Shoulders Display', cursive;
+    text-align: center;
+    color: #fff;
+    background: linear-gradient(180deg, #001f3f, #2d3646);
+    background-image: linear-gradient(to bottom, rgba(0,0,0,0.5) 0, rgba(0,0,0,0) 200px),
+                      radial-gradient(circle at 50% 20%, rgba(255,255,255,0.05), rgba(0,0,0,0) 70%),
+                      url('../noise.png');
+                      /* noise texture overlay */
+    background-size: cover, 100% 100%, 300px 300px;
+    background-blend-mode: multiply, overlay, multiply;
+    overflow-x: hidden;
+}
+
+.container {
+    margin-top: 100px;
+    position: relative;
+}
+
+img.logo {
+    width: 200px;
+    display: block;
+    margin: 0 auto 20px auto;
+}
+
+.tagline {
+    font-size: 20px;
+    color: #c49a59;
+    margin-bottom: 40px;
+}
+
+.buttons {
+    position: relative;
+    z-index: 1;
+}
+
+a.button {
+    display: inline-block;
+    margin: 10px;
+    padding: 12px 24px;
+    background: rgba(45,54,70,0.6);
+    color: #fff;
+    text-decoration: none;
+    border-radius: 30px;
+    backdrop-filter: blur(5px);
+    border: 1px solid rgba(255,255,255,0.2);
+    transition: transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
+    position: relative;
+}
+
+a.button .badge {
+    display: inline-block;
+    margin-right: 6px;
+}
+
+a.button:hover {
+    background: rgba(179,28,28,0.4);
+    transform: translateY(-3px);
+    box-shadow: 0 0 8px rgba(179,28,28,0.6) inset;
+}
+
+a.button.disabled {
+    background: rgba(255, 255, 255, 0.1);
+    cursor: not-allowed;
+    pointer-events: none;
+    color: #ddd;
+}
+
+.parallax {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    pointer-events: none;
+    perspective: 800px;
+}
+
+.cog {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 300px;
+    height: 300px;
+    /* uses cog.png for the parallax gear */
+    margin: -150px;
+    background: url('../cog.png') center/contain no-repeat;
+    opacity: 0.05;
+    --depth: -100px;
+    --duration: 360s;
+    transform: translate(-50%, -50%) translateZ(var(--depth)) rotate(0deg);
+    animation: spin var(--duration) linear infinite;
+}
+
+.cog.depth2 { --depth: -200px; --duration: 240s; }
+.cog.depth3 { --depth: -300px; --duration: 180s; }
+
+@keyframes spin {
+    from { transform: translate(-50%, -50%) translateZ(var(--depth)) rotate(0deg); }
+    to { transform: translate(-50%, -50%) translateZ(var(--depth)) rotate(360deg); }
+}
