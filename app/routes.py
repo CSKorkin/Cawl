@@ -21,6 +21,7 @@ def load_armies(count: int = 8):
             armies = random.sample(armies, count)
         else:
             random.shuffle(armies)
+
     return armies
 
 main = Blueprint('main', __name__)
