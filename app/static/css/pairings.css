@@ -87,8 +87,8 @@ body {
 
 .pair-slot {
     border: 1px dashed #999;
-    width: 80px;
-    height: 100px;
+    width: 100px;
+    height: 120px;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -114,10 +114,10 @@ body {
 }
 
 .pair-slot img {
-    width: 60px;
-    height: 60px;
+    width: 80px;
+    height: 80px;
     object-fit: cover;
-    margin-top: 18px;
+    margin-top: 20px;
 }
 
 .confirm-btn {
@@ -187,4 +187,8 @@ body.finished #pairings-heading {
 }
 body.finished .log-panel {
     transform: translateY(30px);
+}
+body.finished #pairings-board,
+body.finished #end-buttons {
+    margin-top: 15px;
 }
