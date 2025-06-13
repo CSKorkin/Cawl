@@ -114,6 +114,9 @@ function confirmAttackers() {
       moveCard(card, `opponent-attacker${i}`);
     }
   }
+
+  // enable clicking opponent attackers to accept
+  setupArmySelection();
 }
 
 function confirmAccept() {
