@@ -144,9 +144,16 @@ body {
 
 .score-overlay {
     position: absolute;
-    top: -10px;
+    top: -24px;
     left: 50%;
     transform: translateX(-50%);
     font-size: 24px;
     font-weight: bold;
+    font-family: 'Orbitron', sans-serif;
 }
+
+.score-overlay.r-text { color: #d60000; }
+.score-overlay.o-text { color: #e67e00; }
+.score-overlay.y-text { color: #b3b300; }
+.score-overlay.lg-text { color: #2fa02f; }
+.score-overlay.dg-text { color: #006600; }

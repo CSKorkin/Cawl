@@ -12,6 +12,14 @@ let matrixData = [];
 let teamAList = [];
 let teamBList = [];
 
+function scoreClass(val) {
+  if (val <= 4) return 'r-text';
+  if (val <= 8) return 'o-text';
+  if (val <= 11) return 'y-text';
+  if (val <= 15) return 'lg-text';
+  return 'dg-text';
+}
+
 function clearSelections(container) {
   document.querySelectorAll(container + ' .selected').forEach((el) => {
     el.classList.remove('selected');
@@ -162,7 +170,7 @@ function showScores() {
     if (i === -1 || j === -1) return;
     const val = origMatrix[i][j];
     const overlay = document.createElement('div');
-    overlay.className = 'score-overlay';
+    overlay.className = 'score-overlay ' + scoreClass(val);
     overlay.textContent = val;
     slot.appendChild(overlay);
   });
