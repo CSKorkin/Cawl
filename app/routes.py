@@ -37,7 +37,6 @@ def singleplayer():
     matrix = PairingMatrix.random(team_a)
     row_avgs = matrix.matrix.mean(axis=1).round(1).tolist()
     col_avgs = matrix.matrix.mean(axis=0).round(1).tolist()
-    overall_avg = round(matrix.matrix.mean(), 1)
     return render_template(
         'pairings.html',
         team_a=team_a,
@@ -45,6 +44,5 @@ def singleplayer():
         matrix=matrix.matrix,
         row_avgs=row_avgs,
         col_avgs=col_avgs,
-        overall_avg=overall_avg,
     )
 
