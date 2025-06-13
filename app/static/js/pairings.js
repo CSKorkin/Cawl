@@ -115,10 +115,14 @@ document.addEventListener('DOMContentLoaded', () => {
   matrixData = origMatrix.map(r => r.slice());
   teamAList = origTeamA.slice();
   teamBList = origTeamB.slice();
-  origMatrixTable = document.querySelector('.matrix-table').cloneNode(true);
-  origUserHandHTML = document.getElementById('user-hand').innerHTML;
-  origOppHandHTML = document.getElementById('opponent-hand').innerHTML;
-  origBoardHTML = document.getElementById('pairings-board').innerHTML;
+  const tbl = document.querySelector('.matrix-table');
+  if (tbl) origMatrixTable = tbl.cloneNode(true);
+  const uHand = document.getElementById('user-hand');
+  if (uHand) origUserHandHTML = uHand.innerHTML;
+  const oHand = document.getElementById('opponent-hand');
+  if (oHand) origOppHandHTML = oHand.innerHTML;
+  const board = document.getElementById('pairings-board');
+  if (board) origBoardHTML = board.innerHTML;
   setupAIChoice();
   setupArmySelection();
   setupAverageToggle();
@@ -556,12 +560,12 @@ function resetPairings() {
   if (panel) panel.style.display = '';
   const toggleBtn = document.getElementById('toggle-log');
   if (toggleBtn) toggleBtn.textContent = 'Hide Log';
-  document.getElementById('user-hand').style.display = '';
-  document.getElementById('opponent-hand').style.display = '';
+  document.getElementById('user-hand').style.display = 'none';
+  document.getElementById('opponent-hand').style.display = 'none';
   const area = document.getElementById('pair-area');
-  if (area) area.style.display = '';
+  if (area) area.style.display = 'none';
   const conf = document.getElementById('confirm-buttons');
-  if (conf) conf.style.display = '';
+  if (conf) conf.style.display = 'none';
   document.getElementById('user-heading').style.display = '';
   document.getElementById('opp-heading').style.display = '';
   resetCentral();
@@ -576,6 +580,9 @@ function resetPairings() {
   const back = document.getElementById('back-btn');
   if (back) back.style.display = 'none';
   document.body.classList.remove('finished');
+  const chooser = document.getElementById('ai-choice');
+  if (chooser) chooser.style.display = '';
+  aiType = null;
   setupArmySelection();
 }
 
