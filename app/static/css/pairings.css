@@ -102,7 +102,10 @@ body {
     font-size: 12px;
     position: absolute;
     top: 2px;
-    left: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    width: 100%;
 }
 
 .defender-slot {
@@ -136,6 +139,17 @@ body {
     border: 1px solid #666;
     width: 120px;
     height: 120px;
+}
+
+.pair-board .army-slot {
+    margin: 0;
+    position: relative;
+}
+
+.pair-board .army-name {
+    line-height: 1.1;
+    position: relative;
+    top: -2px;
 }
 
 .pair-board .pair-slot.empty {
