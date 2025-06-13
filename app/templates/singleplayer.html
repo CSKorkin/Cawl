@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Singleplayer - 40k Pairings Simulator</title>
+    <style>
+        table { border-collapse: collapse; margin: auto; }
+        td, th { border: 1px solid #ccc; padding: 5px; text-align: center; width: 40px; }
+        .r { background-color: #ffb3b3; }
+        .o { background-color: #ffc966; }
+        .y { background-color: #ffff99; }
+        .lg { background-color: #ccffcc; }
+        .dg { background-color: #66cc66; }
+        body { font-family: Arial, sans-serif; text-align: center; }
+    </style>
+</head>
+<body>
+    <h1>Singleplayer Mode</h1>
+    <table>
+        <tbody>
+            {% for row in matrix %}
+            <tr>
+                {% for val in row %}
+                <td class="{% if val <= 4 %}r{% elif val <= 8 %}o{% elif val <= 11 %}y{% elif val <= 15 %}lg{% else %}dg{% endif %}">{{ val }}</td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <div id="pairings">
+        <h2>Pairings</h2>
+        <p>Pairing interactions will go here.</p>
+    </div>
+</body>
+</html>

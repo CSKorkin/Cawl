@@ -10,10 +10,35 @@
         .y { background-color: #ffff99; }
         .lg { background-color: #ccffcc; }
         .dg { background-color: #66cc66; }
+        body { font-family: Arial, sans-serif; text-align: center; }
+        .container { margin-top: 40px; }
+        img.logo { width: 200px; }
+        a.button {
+            display: inline-block;
+            margin: 10px;
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+        a.button.disabled {
+            background: #aaa;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
     <h1>40k Pairings Simulator</h1>
     <p>Placeholder for pairing interface.</p>
+    <div class="container">
+        <img src="{{ url_for('static', filename='logo.png') }}" alt="Cawl Logo" class="logo">
+        <h1>40k Pairings Simulator</h1>
+        <div>
+            <a href="{{ url_for('main.singleplayer') }}" class="button">Singleplayer</a>
+            <a href="#" class="button disabled">Multiplayer</a>
+        </div>
+    </div>
 </body>
 </html>
