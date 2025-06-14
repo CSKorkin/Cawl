@@ -153,11 +153,13 @@ option {
 }
 
 .defender-slot {
-    background-color: #b8e6b8;
+    /* your selected units */
+    background-color: #2d3646;
 }
 
 .attacker-slot {
-    background-color: #e6b8b8;
+    /* opponent selected units */
+    background-color: #c49a59;
 }
 
 .pair-area .army-slot {
