@@ -4,6 +4,7 @@ body {
     font-family: 'Big Shoulders Display', cursive;
     text-align: center;
     color: #fff;
+    min-height: 100vh;
     --grad-stop1: 60vh; /* updated via JS */
     --grad-stop2: 100vh; /* updated via JS */
     background-image:
@@ -14,24 +15,24 @@ body {
         url('../noise.png'),
         linear-gradient(to bottom, rgba(0,0,0,0.6) 0, rgba(0,0,0,0) 200px);
     background-size: cover, 600px 600px, 100% 100%;
-    background-repeat: no-repeat;
+    background-repeat: no-repeat, repeat, no-repeat;
     background-blend-mode: normal, multiply, normal;
     overflow-x: hidden;
 }
 
 .container {
-    margin-top: 100px;
+    margin-top: 12vh;
     position: relative;
 }
 
 img.logo {
-    width: 260px;
+    width: 300px;
     display: block;
     margin: 0 auto 20px auto;
 }
 
 .tagline {
-    font-size: 20px;
+    font-size: 24px;
     color: #c49a59;
     margin-bottom: 40px;
 }
@@ -44,7 +45,7 @@ img.logo {
 a.button {
     display: inline-block;
     margin: 10px;
-    padding: 12px 24px;
+    padding: 16px 32px;
     background: rgba(45,54,70,0.6);
     color: #fff;
     text-decoration: none;
