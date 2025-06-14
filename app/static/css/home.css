@@ -4,11 +4,17 @@ body {
     font-family: 'Big Shoulders Display', cursive;
     text-align: center;
     color: #fff;
+    --grad-stop1: 60vh; /* updated via JS */
+    --grad-stop2: 100vh; /* updated via JS */
     background-image:
-        radial-gradient(circle at bottom center, #000 0%, #001f3f 60%, #2d3646 100%),
+        radial-gradient(circle at center bottom,
+                        #000 0,
+                        #001f3f var(--grad-stop1),
+                        #2d3646 var(--grad-stop2)),
         url('../noise.png'),
         linear-gradient(to bottom, rgba(0,0,0,0.6) 0, rgba(0,0,0,0) 200px);
     background-size: cover, 600px 600px, 100% 100%;
+    background-repeat: no-repeat;
     background-blend-mode: normal, multiply, normal;
     overflow-x: hidden;
 }

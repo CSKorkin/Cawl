@@ -46,3 +46,5 @@ The home page styling expects two images under `app/static/`:
 - **cog.png** – a transparent PNG of a gear about 600x600px for the parallax effect.
 
 Place these files in the `app/static` directory so the references in `home.css` work correctly.
+
+The `home.js` script adjusts CSS variables based on the browser height so the radial gradient covers the screen without banding.
