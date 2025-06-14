@@ -20,18 +20,42 @@ button:hover {
     background: rgba(179,28,28,0.4);
 }
 a:hover { color: #b31c1c; }
+
+select,
+input[type=number] {
+    background: rgba(45,54,70,0.6);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 4px;
+    padding: 4px 6px;
+    appearance: none;
+    width: 60px;
+}
+
+option {
+    color: #000;
+}
 .matrix-table {
     margin: 20px auto;
     border-collapse: collapse;
 }
-.matrix-table td, .matrix-table th {
+.matrix-table td,
+.matrix-table th {
     border: 1px solid #ccc;
     padding: 5px;
     width: 60px;
     height: 60px;
     text-align: center;
     vertical-align: middle;
+}
+
+/* Keep score numbers black but headers inherit the page colour */
+.matrix-table td {
     color: #000;
+}
+
+.matrix-table th {
+    color: #fff;
 }
 .army-cell {
     width: 90px;
@@ -223,7 +247,7 @@ a:hover { color: #b31c1c; }
     top: 10px;
     font-size: 32px;
     text-decoration: none;
-    color: #555;
+    color: #fff;
     display: none;
 }
 #toggle-log {
