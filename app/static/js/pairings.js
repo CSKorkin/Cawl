@@ -16,7 +16,7 @@ let origUserHandHTML = '';
 let origOppHandHTML = '';
 let origBoardHTML = '';
 let aiType = null;
-let variance = 5;
+let variance = 3;
 let oppMatrixData = [];
 let origOppMatrix = [];
 
