@@ -281,3 +281,9 @@ body.finished #end-buttons {
     font-size: 24px;
     font-family: 'Orbitron', sans-serif;
 }
+
+#adv-info {
+    margin-top: 10px;
+    white-space: pre-line;
+    font-family: 'Orbitron', sans-serif;
+}
