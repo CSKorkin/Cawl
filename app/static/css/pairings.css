@@ -31,6 +31,7 @@ a:hover { color: #b31c1c; }
     height: 60px;
     text-align: center;
     vertical-align: middle;
+    color: #000;
 }
 .army-cell {
     width: 90px;

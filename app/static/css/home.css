@@ -4,11 +4,10 @@ body {
     font-family: 'Big Shoulders Display', cursive;
     text-align: center;
     color: #fff;
-    background: linear-gradient(180deg, #001f3f, #2d3646);
+    background: radial-gradient(circle at center top, #001f3f, #2d3646 80%);
     background-image: linear-gradient(to bottom, rgba(0,0,0,0.5) 0, rgba(0,0,0,0) 200px),
                       radial-gradient(circle at 50% 20%, rgba(255,255,255,0.05), rgba(0,0,0,0) 70%),
                       url('../noise.png');
-                      /* noise texture overlay */
     background-size: cover, 100% 100%, 300px 300px;
     background-blend-mode: multiply, overlay, multiply;
     overflow-x: hidden;
@@ -90,13 +89,15 @@ a.button.disabled {
     background: url('../cog.png') center/contain no-repeat;
     opacity: 0.05;
     --depth: -100px;
-    --duration: 360s;
+    --duration: 240s;
     transform: translate(-50%, -50%) translateZ(var(--depth)) rotate(0deg);
     animation: spin var(--duration) linear infinite;
 }
 
-.cog.depth2 { --depth: -200px; --duration: 240s; }
-.cog.depth3 { --depth: -300px; --duration: 180s; }
+.cog.depth2 { --depth: -200px; --duration: 200s; }
+.cog.depth3 { --depth: -300px; --duration: 160s; }
+.cog.depth4 { --depth: -400px; --duration: 120s; }
+.cog.depth5 { --depth: -500px; --duration: 90s; }
 
 @keyframes spin {
     from { transform: translate(-50%, -50%) translateZ(var(--depth)) rotate(0deg); }
