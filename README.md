@@ -1,6 +1,6 @@
 # 40k Pairings Simulator
 
-This repository contains the starting point for a 40k pairings simulator. The goal is to allow competitive play by simulating the defender/attacker pairing process for Warhammer 40k team tournaments.
+This repository contains the code for a 40k pairings simulator. The goal is to allow competitive play by simulating the defender/attacker pairing process for Warhammer 40k team tournaments.
 
 ## Frameworks
 
