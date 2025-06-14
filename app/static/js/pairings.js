@@ -19,6 +19,10 @@ let aiType = null;
 let variance = 3;
 let oppMatrixData = [];
 let origOppMatrix = [];
+let baseline1 = 0;
+let baseline5 = 0;
+let advPairings = [];
+let advLogLines = [];
 
 function scoreClass(val) {
   if (val <= 4) return 'r-text';
@@ -84,8 +88,9 @@ function setupAIChoice() {
     aiType = sel.value;
     if (advMenu && sel.value === 'advanced') {
       variance = parseInt(document.getElementById('variance-input').value) || 0;
-      generateOppMatrix();
     }
+    generateOppMatrix();
+    computeScoreScale();
     chooser.style.display = 'none';
     pairArea.style.display = '';
     uHand.style.display = '';
@@ -127,7 +132,6 @@ document.addEventListener('DOMContentLoaded', () => {
   matrixData = origMatrix.map(r => r.slice());
   teamAList = origTeamA.slice();
   teamBList = origTeamB.slice();
-  generateOppMatrix();
   const tbl = document.querySelector('.matrix-table');
   if (tbl) origMatrixTable = tbl.cloneNode(true);
   const uHand = document.getElementById('user-hand');
@@ -145,6 +149,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (resetBtn) resetBtn.addEventListener('click', resetPairings);
   const newBtn = document.getElementById('new-btn');
   if (newBtn) newBtn.addEventListener('click', () => window.location.reload());
+  const advBtn = document.getElementById('show-adv-btn');
+  if (advBtn) advBtn.addEventListener('click', showAdvancedInfo);
 });
 
 function setupConfirmButtons() {
@@ -619,12 +625,17 @@ function resetPairings() {
   const back = document.getElementById('back-btn');
   if (back) back.style.display = 'none';
   document.body.classList.remove('finished');
+  const scoreEl = document.getElementById('score-result');
+  if (scoreEl) scoreEl.textContent = '';
+  const advBtn = document.getElementById('show-adv-btn');
+  if (advBtn) advBtn.style.display = 'none';
+  const advInfo = document.getElementById('adv-info');
+  if (advInfo) advInfo.style.display = 'none';
   const chooser = document.getElementById('ai-choice');
   if (chooser) chooser.style.display = '';
   const advMenu = document.getElementById('advanced-menu');
   if (advMenu) advMenu.style.display = 'none';
   aiType = null;
-  generateOppMatrix();
   setupArmySelection();
 }
 
@@ -644,6 +655,7 @@ function finishPairings() {
   const back = document.getElementById('back-btn');
   if (back) back.style.display = 'block';
   document.body.classList.add('finished');
+  showRating();
 }
 
 function adjustPairNames() {
@@ -656,4 +668,199 @@ function adjustPairNames() {
         name.style.marginTop = '0';
       }
     });
+}
+
+function chooseDefenderSim(type, selfList, oppList, matrix, selfRows) {
+  if (selfList.length === 1) return selfList[0];
+  if (type !== 'advanced') {
+    return selfList[Math.floor(Math.random() * selfList.length)];
+  }
+  let best = selfList[0];
+  let bestVal = -Infinity;
+  for (const d of selfList) {
+    let worst = -Infinity;
+    for (let i = 0; i < oppList.length; i++) {
+      for (let j = i + 1; j < oppList.length; j++) {
+        const a1 = oppList[i];
+        const a2 = oppList[j];
+        const v1 = selfRows ? matrix[d][a1] : matrix[a1][d];
+        const v2 = selfRows ? matrix[d][a2] : matrix[a2][d];
+        const pairVal = Math.min(v1, v2);
+        if (pairVal > worst) worst = pairVal;
+      }
+    }
+    if (oppList.length === 1) {
+      const v = selfRows ? matrix[d][oppList[0]] : matrix[oppList[0]][d];
+      worst = v;
+    }
+    if (worst > bestVal) {
+      bestVal = worst;
+      best = d;
+    }
+  }
+  return best;
+}
+
+function chooseAttackersSim(type, selfList, defIdx, matrix, selfRows) {
+  const avail = selfList.filter(i => i !== defIdx);
+  if (avail.length <= 2) return avail.slice(0, 2);
+  if (type !== 'advanced') {
+    const shuffled = avail.sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, 2);
+  }
+  let best = [avail[0], avail[1]];
+  let bestVal = -Infinity;
+  for (let i = 0; i < avail.length; i++) {
+    for (let j = i + 1; j < avail.length; j++) {
+      const a1 = avail[i];
+      const a2 = avail[j];
+      const v1 = selfRows ? matrix[a1][defIdx] : matrix[defIdx][a1];
+      const v2 = selfRows ? matrix[a2][defIdx] : matrix[defIdx][a2];
+      const val = Math.min(v1, v2);
+      if (val > bestVal) {
+        bestVal = val;
+        best = [a1, a2];
+      }
+    }
+  }
+  return best;
+}
+
+function chooseAcceptedSim(type, pair, defIdx, matrix, defRows) {
+  if (pair.length === 1) return pair[0];
+  if (type !== 'advanced') {
+    return pair[Math.floor(Math.random() * pair.length)];
+  }
+  const v1 = defRows ? matrix[defIdx][pair[0]] : matrix[pair[0]][defIdx];
+  const v2 = defRows ? matrix[defIdx][pair[1]] : matrix[pair[1]][defIdx];
+  return v1 <= v2 ? pair[0] : pair[1];
+}
+
+function simulatePairings(matA, matB, typeA, typeB, withLog = false) {
+  let remA = matA.map((_, i) => i);
+  let remB = matB.map((_, i) => i);
+  let totalA = 0;
+  let totalB = 0;
+  const pairs = [];
+  const log = [];
+  let refusedPair = null;
+
+  for (let step = 0; step < 3; step++) {
+    const defA = chooseDefenderSim(typeA, remA, remB, matA, true);
+    const defB = chooseDefenderSim(typeB, remB, remA, matB, true);
+    if (withLog) {
+      const pre = ['First', 'Second', 'Third'][step];
+      log.push(`${pre} Defender for you: ${origTeamA[defA]}`);
+      log.push(`${pre} Defender for opponent: ${origTeamB[defB]}`);
+    }
+
+    const remAWithoutDef = remA.filter(i => i !== defA);
+    const remBWithoutDef = remB.filter(i => i !== defB);
+    const attBPair = chooseAttackersSim(typeB, remBWithoutDef, defA, matB, true);
+    const attAPair = chooseAttackersSim(typeA, remAWithoutDef, defB, matA, true);
+    const accA = chooseAcceptedSim(typeA, attBPair, defA, matA, true);
+    const accB = chooseAcceptedSim(typeB, attAPair, defB, matB, true);
+    const rejA = attBPair.find(x => x !== accA);
+    const rejB = attAPair.find(x => x !== accB);
+
+    if (withLog) {
+      const pre = ['first', 'second', 'third'][step];
+      log.push(`Your ${pre} attackers: ${origTeamB[accA]} accepted, ${origTeamB[rejA]} rejected`);
+      log.push(`Opponent's ${pre} attackers: ${origTeamA[accB]} accepted, ${origTeamA[rejB]} rejected`);
+    }
+
+    totalA += matA[defA][accA];
+    totalB += matB[accA][defA];
+    totalA += matA[accB][defB];
+    totalB += matB[defB][accB];
+    pairs.push([defA, accA]);
+    pairs.push([accB, defB]);
+    remA = remA.filter(i => i !== defA && i !== accB);
+    remB = remB.filter(i => i !== defB && i !== accA);
+    if (step === 2) {
+      refusedPair = [rejB, rejA];
+    }
+  }
+
+  if (refusedPair) {
+    if (withLog) log.push(`Refused: ${origTeamA[refusedPair[0]]} vs ${origTeamB[refusedPair[1]]}`);
+    totalA += matA[refusedPair[0]][refusedPair[1]];
+    totalB += matB[refusedPair[1]][refusedPair[0]];
+    pairs.push(refusedPair);
+    remA = remA.filter(i => i !== refusedPair[0]);
+    remB = remB.filter(i => i !== refusedPair[1]);
+  }
+
+  if (remA.length === 1 && remB.length === 1) {
+    const a = remA[0];
+    const b = remB[0];
+    if (withLog) log.push(`Forgotten: ${origTeamA[a]} vs ${origTeamB[b]}`);
+    totalA += matA[a][b];
+    totalB += matB[b][a];
+    pairs.push([a, b]);
+  }
+
+  if (withLog) {
+    log.push('');
+    log.push('Final pairings:');
+    pairs.forEach(p => {
+      log.push(`${origTeamA[p[0]]} vs ${origTeamB[p[1]]}`);
+    });
+  }
+
+  return { totalA, totalB, pairs, log };
+}
+
+function computeScoreScale() {
+  let sumRandom = 0;
+  for (let i = 0; i < 50; i++) {
+    const res = simulatePairings(origMatrix, origOppMatrix, 'advanced', 'random');
+    sumRandom += res.totalB;
+  }
+  baseline1 = sumRandom / 50;
+  const advRes = simulatePairings(origMatrix, origOppMatrix, 'advanced', 'advanced', true);
+  baseline5 = advRes.totalA;
+  advPairings = advRes.pairs;
+  advLogLines = advRes.log.slice();
+  advLogLines.unshift(`Average Random vs Advanced: ${baseline1.toFixed(2)}`);
+  advLogLines.unshift(`Advanced vs Advanced Total: ${baseline5}`);
+}
+
+function computePlayerTotal() {
+  let sum = 0;
+  document.querySelectorAll('#pairings-board .pair-slot').forEach(slot => {
+    const a = slot.dataset.a;
+    const b = slot.dataset.b;
+    if (!a || !b) return;
+    const i = origTeamA.indexOf(a);
+    const j = origTeamB.indexOf(b);
+    if (i !== -1 && j !== -1) sum += origMatrix[i][j];
+  });
+  return sum;
+}
+
+function showRating() {
+  const playerTotal = computePlayerTotal();
+  let rating = baseline5 === baseline1 ? 5 :
+    1 + ((playerTotal - baseline1) * 4) / (baseline5 - baseline1);
+  if (rating < 1) rating = 1;
+  if (rating > 5) rating = 5;
+  let text = `Pairing Score: ${rating.toFixed(2)}/5`;
+  if (baseline5 > baseline1 && playerTotal >= baseline5 && rating === 5)
+    text += ' - You outpaired the algorithm!';
+  const el = document.getElementById('score-result');
+  if (el) el.textContent = text;
+  const advBtn = document.getElementById('show-adv-btn');
+  if (advBtn) advBtn.style.display = 'inline-block';
+}
+
+function showAdvancedInfo() {
+  const panel = document.getElementById('adv-info');
+  if (!panel) return;
+  if (panel.style.display === 'none' || panel.style.display === '') {
+    panel.style.display = 'block';
+    panel.textContent = advLogLines.join('\n');
+  } else {
+    panel.style.display = 'none';
+  }
 }

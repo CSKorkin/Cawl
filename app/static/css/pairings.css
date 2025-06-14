@@ -219,7 +219,7 @@ option {
 
 .score-overlay {
     position: absolute;
-    top: -60px;
+    top: -70px;
     left: 50%;
     transform: translateX(-50%);
     font-size: 24px;
@@ -270,4 +270,20 @@ body.finished .log-panel {
 body.finished #pairings-board,
 body.finished #end-buttons {
     margin-top: 115px;
+}
+
+#show-adv-btn {
+    margin-top: 10px;
+}
+
+.score-result {
+    margin-top: 60px;
+    font-size: 24px;
+    font-family: 'Orbitron', sans-serif;
+}
+
+#adv-info {
+    margin-top: 10px;
+    white-space: pre-line;
+    font-family: 'Orbitron', sans-serif;
 }
