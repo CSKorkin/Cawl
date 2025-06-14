@@ -19,6 +19,9 @@ let aiType = null;
 let variance = 3;
 let oppMatrixData = [];
 let origOppMatrix = [];
+let baseline1 = 0;
+let baseline5 = 0;
+let advPairings = [];
 
 function scoreClass(val) {
   if (val <= 4) return 'r-text';
@@ -84,8 +87,9 @@ function setupAIChoice() {
     aiType = sel.value;
     if (advMenu && sel.value === 'advanced') {
       variance = parseInt(document.getElementById('variance-input').value) || 0;
-      generateOppMatrix();
     }
+    generateOppMatrix();
+    computeScoreScale();
     chooser.style.display = 'none';
     pairArea.style.display = '';
     uHand.style.display = '';
@@ -127,7 +131,6 @@ document.addEventListener('DOMContentLoaded', () => {
   matrixData = origMatrix.map(r => r.slice());
   teamAList = origTeamA.slice();
   teamBList = origTeamB.slice();
-  generateOppMatrix();
   const tbl = document.querySelector('.matrix-table');
   if (tbl) origMatrixTable = tbl.cloneNode(true);
   const uHand = document.getElementById('user-hand');
@@ -145,6 +148,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (resetBtn) resetBtn.addEventListener('click', resetPairings);
   const newBtn = document.getElementById('new-btn');
   if (newBtn) newBtn.addEventListener('click', () => window.location.reload());
+  const advBtn = document.getElementById('show-adv-btn');
+  if (advBtn) advBtn.addEventListener('click', showAdvancedInfo);
 });
 
 function setupConfirmButtons() {
@@ -619,12 +624,15 @@ function resetPairings() {
   const back = document.getElementById('back-btn');
   if (back) back.style.display = 'none';
   document.body.classList.remove('finished');
+  const scoreEl = document.getElementById('score-result');
+  if (scoreEl) scoreEl.textContent = '';
+  const advBtn = document.getElementById('show-adv-btn');
+  if (advBtn) advBtn.style.display = 'none';
   const chooser = document.getElementById('ai-choice');
   if (chooser) chooser.style.display = '';
   const advMenu = document.getElementById('advanced-menu');
   if (advMenu) advMenu.style.display = 'none';
   aiType = null;
-  generateOppMatrix();
   setupArmySelection();
 }
 
@@ -644,6 +652,7 @@ function finishPairings() {
   const back = document.getElementById('back-btn');
   if (back) back.style.display = 'block';
   document.body.classList.add('finished');
+  showRating();
 }
 
 function adjustPairNames() {
@@ -656,4 +665,141 @@ function adjustPairNames() {
         name.style.marginTop = '0';
       }
     });
+}
+
+function chooseDefenderSim(type, selfList, oppList, matrix, selfRows) {
+  if (selfList.length === 1) return selfList[0];
+  if (type !== 'advanced') {
+    return selfList[Math.floor(Math.random() * selfList.length)];
+  }
+  let best = selfList[0];
+  let bestVal = -Infinity;
+  for (const d of selfList) {
+    let worst = -Infinity;
+    for (let i = 0; i < oppList.length; i++) {
+      for (let j = i + 1; j < oppList.length; j++) {
+        const a1 = oppList[i];
+        const a2 = oppList[j];
+        const v1 = selfRows ? matrix[d][a1] : matrix[a1][d];
+        const v2 = selfRows ? matrix[d][a2] : matrix[a2][d];
+        const pairVal = Math.min(v1, v2);
+        if (pairVal > worst) worst = pairVal;
+      }
+    }
+    if (oppList.length === 1) {
+      const v = selfRows ? matrix[d][oppList[0]] : matrix[oppList[0]][d];
+      worst = v;
+    }
+    if (worst > bestVal) {
+      bestVal = worst;
+      best = d;
+    }
+  }
+  return best;
+}
+
+function chooseAttackersSim(type, selfList, defIdx, matrix, selfRows) {
+  const avail = selfList.filter(i => i !== defIdx);
+  if (avail.length <= 2) return avail.slice(0, 2);
+  if (type !== 'advanced') {
+    const shuffled = avail.sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, 2);
+  }
+  let best = [avail[0], avail[1]];
+  let bestVal = -Infinity;
+  for (let i = 0; i < avail.length; i++) {
+    for (let j = i + 1; j < avail.length; j++) {
+      const a1 = avail[i];
+      const a2 = avail[j];
+      const v1 = selfRows ? matrix[a1][defIdx] : matrix[defIdx][a1];
+      const v2 = selfRows ? matrix[a2][defIdx] : matrix[defIdx][a2];
+      const val = Math.min(v1, v2);
+      if (val > bestVal) {
+        bestVal = val;
+        best = [a1, a2];
+      }
+    }
+  }
+  return best;
+}
+
+function chooseAcceptedSim(type, pair, defIdx, matrix, defRows) {
+  if (pair.length === 1) return pair[0];
+  if (type !== 'advanced') {
+    return pair[Math.floor(Math.random() * pair.length)];
+  }
+  const v1 = defRows ? matrix[defIdx][pair[0]] : matrix[pair[0]][defIdx];
+  const v2 = defRows ? matrix[defIdx][pair[1]] : matrix[pair[1]][defIdx];
+  return v1 <= v2 ? pair[0] : pair[1];
+}
+
+function simulatePairings(matA, matB, typeA, typeB) {
+  let remA = matA.map((_, i) => i);
+  let remB = matB.map((_, i) => i);
+  let totalA = 0;
+  let totalB = 0;
+  const pairs = [];
+  while (remA.length > 0) {
+    const defA = chooseDefenderSim(typeA, remA, remB, matA, true);
+    const defB = chooseDefenderSim(typeB, remB, remA, matB, true);
+    const attBPair = chooseAttackersSim(typeB, remB, defB, matB, true);
+    const attAPair = chooseAttackersSim(typeA, remA, defA, matA, true);
+    const accA = chooseAcceptedSim(typeA, attBPair, defA, matA, true);
+    const accB = chooseAcceptedSim(typeB, attAPair, defB, matB, true);
+
+    totalA += matA[defA][accA];
+    totalB += matB[accA][defA];
+    totalA += matA[accB][defB];
+    totalB += matB[defB][accB];
+    pairs.push([defA, accA]);
+    pairs.push([accB, defB]);
+
+    remA = remA.filter(i => i !== defA && i !== accB);
+    remB = remB.filter(i => i !== defB && i !== accA);
+  }
+  return { totalA, totalB, pairs };
+}
+
+function computeScoreScale() {
+  let sumRandom = 0;
+  for (let i = 0; i < 50; i++) {
+    const res = simulatePairings(origMatrix, origOppMatrix, 'advanced', 'random');
+    sumRandom += res.totalB;
+  }
+  baseline1 = sumRandom / 50;
+  const advRes = simulatePairings(origMatrix, origOppMatrix, 'advanced', 'advanced');
+  baseline5 = advRes.totalA;
+  advPairings = advRes.pairs;
+}
+
+function computePlayerTotal() {
+  let sum = 0;
+  document.querySelectorAll('#pairings-board .pair-slot').forEach(slot => {
+    const a = slot.dataset.a;
+    const b = slot.dataset.b;
+    if (!a || !b) return;
+    const i = origTeamA.indexOf(a);
+    const j = origTeamB.indexOf(b);
+    if (i !== -1 && j !== -1) sum += origMatrix[i][j];
+  });
+  return sum;
+}
+
+function showRating() {
+  const playerTotal = computePlayerTotal();
+  let rating = baseline5 === baseline1 ? 5 :
+    1 + ((playerTotal - baseline1) * 4) / (baseline5 - baseline1);
+  if (rating < 1) rating = 1;
+  if (rating > 5) rating = 5;
+  let text = `Pairing Score: ${rating.toFixed(2)}/5`;
+  if (playerTotal > baseline5) text += ' - You outpaired the algorithm!';
+  const el = document.getElementById('score-result');
+  if (el) el.textContent = text;
+  const advBtn = document.getElementById('show-adv-btn');
+  if (advBtn) advBtn.style.display = 'inline-block';
+}
+
+function showAdvancedInfo() {
+  const lines = advPairings.map(p => `${origTeamA[p[0]]} vs ${origTeamB[p[1]]}`);
+  alert('Advanced vs Advanced Pairings:\n' + lines.join('\n'));
 }
