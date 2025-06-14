@@ -238,11 +238,14 @@ function updateAverages() {
 function generateOppMatrix() {
   origOppMatrix = origMatrix.map(row =>
     row.map(val => {
-      const diff = Math.floor(Math.random() * (variance * 2 + 1)) - variance;
-      let v = val + diff;
-      if (v < 2) v = 2;
-      if (v > 18) v = 18;
-      return v;
+      let newVal = val;
+      if (Math.random() < 0.5) {
+        const diff = Math.floor(Math.random() * (variance * 2 + 1)) - variance;
+        newVal += diff;
+        if (newVal < 2) newVal = 2;
+        if (newVal > 18) newVal = 18;
+      }
+      return newVal;
     })
   );
   oppMatrixData = origOppMatrix.map(r => r.slice());
