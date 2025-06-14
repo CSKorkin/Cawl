@@ -670,38 +670,43 @@ function adjustPairNames() {
     });
 }
 
-function chooseDefenderSim(type, selfList, oppList, matrix, selfRows) {
+function computeMinTotalIdx(aList, bList, matrix, memo = {}) {
+  const key = aList.join(',') + '|' + bList.join(',');
+  if (memo[key] !== undefined) return memo[key];
+  if (aList.length === 0) return 0;
+  const a = aList[0];
+  const restA = aList.slice(1);
+  let best = Infinity;
+  for (let i = 0; i < bList.length; i++) {
+    const b = bList[i];
+    const restB = bList.slice();
+    restB.splice(i, 1);
+    const val = matrix[a][b] + computeMinTotalIdx(restA, restB, matrix, memo);
+    if (val < best) best = val;
+  }
+  memo[key] = best;
+  return best;
+}
+
+function chooseDefenderSim(type, selfList, oppList, matrix) {
   if (selfList.length === 1) return selfList[0];
   if (type !== 'advanced') {
     return selfList[Math.floor(Math.random() * selfList.length)];
   }
   let best = selfList[0];
-  let bestVal = -Infinity;
+  let bestVal = Infinity;
   for (const d of selfList) {
-    let worst = -Infinity;
-    for (let i = 0; i < oppList.length; i++) {
-      for (let j = i + 1; j < oppList.length; j++) {
-        const a1 = oppList[i];
-        const a2 = oppList[j];
-        const v1 = selfRows ? matrix[d][a1] : matrix[a1][d];
-        const v2 = selfRows ? matrix[d][a2] : matrix[a2][d];
-        const pairVal = Math.min(v1, v2);
-        if (pairVal > worst) worst = pairVal;
-      }
-    }
-    if (oppList.length === 1) {
-      const v = selfRows ? matrix[d][oppList[0]] : matrix[oppList[0]][d];
-      worst = v;
-    }
-    if (worst > bestVal) {
-      bestVal = worst;
+    const remSelf = selfList.filter(x => x !== d);
+    const score = computeMinTotalIdx(oppList, remSelf, matrix);
+    if (score < bestVal) {
+      bestVal = score;
       best = d;
     }
   }
   return best;
 }
 
-function chooseAttackersSim(type, selfList, defIdx, matrix, selfRows) {
+function chooseAttackersSim(type, selfList, defIdx, matrix, oppList) {
   const avail = selfList.filter(i => i !== defIdx);
   if (avail.length <= 2) return avail.slice(0, 2);
   if (type !== 'advanced') {
@@ -709,16 +714,20 @@ function chooseAttackersSim(type, selfList, defIdx, matrix, selfRows) {
     return shuffled.slice(0, 2);
   }
   let best = [avail[0], avail[1]];
-  let bestVal = -Infinity;
+  let bestVal = Infinity;
   for (let i = 0; i < avail.length; i++) {
     for (let j = i + 1; j < avail.length; j++) {
       const a1 = avail[i];
       const a2 = avail[j];
-      const v1 = selfRows ? matrix[a1][defIdx] : matrix[defIdx][a1];
-      const v2 = selfRows ? matrix[a2][defIdx] : matrix[defIdx][a2];
-      const val = Math.min(v1, v2);
-      if (val > bestVal) {
-        bestVal = val;
+      const v1 = matrix[defIdx][a1];
+      const v2 = matrix[defIdx][a2];
+      const keep = v1 >= v2 ? a1 : a2;
+      const score = Math.max(v1, v2);
+      const remA = oppList.filter(n => n !== defIdx);
+      const remB = selfList.filter(n => n !== keep && n !== defIdx);
+      const total = score + computeMinTotalIdx(remA, remB, matrix);
+      if (total < bestVal) {
+        bestVal = total;
         best = [a1, a2];
       }
     }
@@ -726,14 +735,22 @@ function chooseAttackersSim(type, selfList, defIdx, matrix, selfRows) {
   return best;
 }
 
-function chooseAcceptedSim(type, pair, defIdx, matrix, defRows) {
+function chooseAcceptedSim(type, pair, defIdx, matrix, selfRemain, oppRemain) {
   if (pair.length === 1) return pair[0];
   if (type !== 'advanced') {
     return pair[Math.floor(Math.random() * pair.length)];
   }
-  const v1 = defRows ? matrix[defIdx][pair[0]] : matrix[pair[0]][defIdx];
-  const v2 = defRows ? matrix[defIdx][pair[1]] : matrix[pair[1]][defIdx];
-  return v1 <= v2 ? pair[0] : pair[1];
+  let best = pair[0];
+  let bestVal = Infinity;
+  pair.forEach(a => {
+    const remOpp = oppRemain.filter(x => x !== a);
+    const score = matrix[defIdx][a] + computeMinTotalIdx(selfRemain, remOpp, matrix);
+    if (score < bestVal) {
+      bestVal = score;
+      best = a;
+    }
+  });
+  return best;
 }
 
 function simulatePairings(matA, matB, typeA, typeB, withLog = false) {
@@ -746,8 +763,8 @@ function simulatePairings(matA, matB, typeA, typeB, withLog = false) {
   let refusedPair = null;
 
   for (let step = 0; step < 3; step++) {
-    const defA = chooseDefenderSim(typeA, remA, remB, matA, true);
-    const defB = chooseDefenderSim(typeB, remB, remA, matB, true);
+    const defA = chooseDefenderSim(typeA, remA, remB, matA);
+    const defB = chooseDefenderSim(typeB, remB, remA, matB);
     if (withLog) {
       const pre = ['First', 'Second', 'Third'][step];
       log.push(`${pre} Defender for you: ${origTeamA[defA]}`);
@@ -756,10 +773,10 @@ function simulatePairings(matA, matB, typeA, typeB, withLog = false) {
 
     const remAWithoutDef = remA.filter(i => i !== defA);
     const remBWithoutDef = remB.filter(i => i !== defB);
-    const attBPair = chooseAttackersSim(typeB, remBWithoutDef, defA, matB, true);
-    const attAPair = chooseAttackersSim(typeA, remAWithoutDef, defB, matA, true);
-    const accA = chooseAcceptedSim(typeA, attBPair, defA, matA, true);
-    const accB = chooseAcceptedSim(typeB, attAPair, defB, matB, true);
+    const attBPair = chooseAttackersSim(typeB, remBWithoutDef, defA, matB, remAWithoutDef);
+    const attAPair = chooseAttackersSim(typeA, remAWithoutDef, defB, matA, remBWithoutDef);
+    const accA = chooseAcceptedSim(typeA, attBPair, defA, matA, remAWithoutDef, remBWithoutDef);
+    const accB = chooseAcceptedSim(typeB, attAPair, defB, matB, remBWithoutDef, remAWithoutDef);
     const rejA = attBPair.find(x => x !== accA);
     const rejB = attAPair.find(x => x !== accB);
 
