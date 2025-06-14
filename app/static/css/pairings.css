@@ -99,6 +99,10 @@ option {
     margin-top: 70px;
 }
 
+#advanced-menu {
+    margin-top: 5px;
+}
+
 .avg-cell {
     display: none;
     color: #fff;

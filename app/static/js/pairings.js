@@ -16,6 +16,9 @@ let origUserHandHTML = '';
 let origOppHandHTML = '';
 let origBoardHTML = '';
 let aiType = null;
+let variance = 3;
+let oppMatrixData = [];
+let origOppMatrix = [];
 
 function scoreClass(val) {
   if (val <= 4) return 'r-text';
@@ -63,6 +66,7 @@ function setupAIChoice() {
   const chooser = document.getElementById('ai-choice');
   if (!chooser) return;
   const btn = document.getElementById('choose-ai');
+  const advMenu = document.getElementById('advanced-menu');
   const pairArea = document.getElementById('pair-area');
   const uHand = document.getElementById('user-hand');
   const oHand = document.getElementById('opponent-hand');
@@ -71,9 +75,17 @@ function setupAIChoice() {
   uHand.style.display = 'none';
   oHand.style.display = 'none';
   conf.style.display = 'none';
+  const sel = document.getElementById('ai-select');
+  sel.addEventListener('change', () => {
+    if (advMenu)
+      advMenu.style.display = sel.value === 'advanced' ? 'block' : 'none';
+  });
   btn.addEventListener('click', () => {
-    const sel = document.getElementById('ai-select');
     aiType = sel.value;
+    if (advMenu && sel.value === 'advanced') {
+      variance = parseInt(document.getElementById('variance-input').value) || 0;
+      generateOppMatrix();
+    }
     chooser.style.display = 'none';
     pairArea.style.display = '';
     uHand.style.display = '';
@@ -115,6 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
   matrixData = origMatrix.map(r => r.slice());
   teamAList = origTeamA.slice();
   teamBList = origTeamB.slice();
+  generateOppMatrix();
   const tbl = document.querySelector('.matrix-table');
   if (tbl) origMatrixTable = tbl.cloneNode(true);
   const uHand = document.getElementById('user-hand');
@@ -178,6 +191,10 @@ function updateMatrixAfterPair(aName, bName) {
   teamBList.splice(colIdx, 1);
   matrixData.splice(rowIdx, 1);
   matrixData.forEach(row => row.splice(colIdx, 1));
+  if (oppMatrixData.length) {
+    oppMatrixData.splice(rowIdx, 1);
+    oppMatrixData.forEach(row => row.splice(colIdx, 1));
+  }
 
   const table = document.querySelector('.matrix-table');
   const bodyRows = table.querySelectorAll('tbody tr:not(.avg-row)');
@@ -218,6 +235,22 @@ function updateAverages() {
   }
 }
 
+function generateOppMatrix() {
+  origOppMatrix = origMatrix.map(row =>
+    row.map(val => {
+      let newVal = val;
+      if (Math.random() < 0.5) {
+        const diff = Math.floor(Math.random() * (variance * 2 + 1)) - variance;
+        newVal += diff;
+        if (newVal < 2) newVal = 2;
+        if (newVal > 18) newVal = 18;
+      }
+      return newVal;
+    })
+  );
+  oppMatrixData = origOppMatrix.map(r => r.slice());
+}
+
 function showScores() {
   const slots = document.querySelectorAll('#pairings-board .pair-slot');
   slots.forEach(slot => {
@@ -255,15 +288,16 @@ function colIndex(name) {
   return teamBList.indexOf(name);
 }
 
-function matrixVal(aName, bName) {
+function matrixVal(aName, bName, useOpp = false) {
   const i = rowIndex(aName);
   const j = colIndex(bName);
   if (i === -1 || j === -1) return 0;
-  return matrixData[i][j];
+  const mat = useOpp ? oppMatrixData : matrixData;
+  return mat[i][j];
 }
 
-function computeMinTotal(aNames, bNames, memo = {}) {
-  const key = aNames.join(',') + '|' + bNames.join(',');
+function computeMinTotal(aNames, bNames, memo = {}, useOpp = false) {
+  const key = aNames.join(',') + '|' + bNames.join(',') + '|' + useOpp;
   if (memo[key] !== undefined) return memo[key];
   if (aNames.length === 0) return 0;
   const a = aNames[0];
@@ -273,7 +307,7 @@ function computeMinTotal(aNames, bNames, memo = {}) {
     const b = bNames[i];
     const restB = bNames.slice();
     restB.splice(i, 1);
-    const val = matrixVal(a, b) + computeMinTotal(restA, restB, memo);
+    const val = matrixVal(a, b, useOpp) + computeMinTotal(restA, restB, memo, useOpp);
     if (val < best) best = val;
   }
   memo[key] = best;
@@ -295,9 +329,10 @@ function chooseDefenderBasic() {
     let maxMin = -Infinity;
     for (let i = 0; i < userNames.length; i++) {
       for (let j = i + 1; j < userNames.length; j++) {
-        const r1 = rowIndex(userNames[i]);
-        const r2 = rowIndex(userNames[j]);
-        const val = Math.min(matrixData[r1][col], matrixData[r2][col]);
+        const val = Math.min(
+          matrixVal(userNames[i], name, true),
+          matrixVal(userNames[j], name, true)
+        );
         if (val > maxMin) maxMin = val;
       }
     }
@@ -322,7 +357,8 @@ function chooseDefenderAdvanced() {
   }
   cards.forEach(name => {
     const remB = availableOppNames().filter(n => n !== name);
-    const score = matrixVal(userDef, name) + computeMinTotal(userNames, remB);
+    const score = matrixVal(userDef, name, true) +
+      computeMinTotal(userNames, remB, {}, true);
     if (score < bestVal) {
       bestVal = score;
       bestCard = name;
@@ -333,15 +369,17 @@ function chooseDefenderAdvanced() {
 }
 
 function chooseAttackersBasic(defName) {
-  const oppCards = availableOppNames().filter(n => n !== (oppDefenderCard ? oppDefenderCard.dataset.name : ''));
+  const oppCards = availableOppNames().filter(
+    n => n !== (oppDefenderCard ? oppDefenderCard.dataset.name : '')
+  );
   let bestPair = [];
   let bestVal = Infinity;
-  const row = rowIndex(defName);
   for (let i = 0; i < oppCards.length; i++) {
     for (let j = i + 1; j < oppCards.length; j++) {
-      const c1 = colIndex(oppCards[i]);
-      const c2 = colIndex(oppCards[j]);
-      const val = Math.max(matrixData[row][c1], matrixData[row][c2]);
+      const val = Math.max(
+        matrixVal(defName, oppCards[i], true),
+        matrixVal(defName, oppCards[j], true)
+      );
       if (val < bestVal) {
         bestVal = val;
         bestPair = [oppCards[i], oppCards[j]];
@@ -362,11 +400,11 @@ function chooseAttackersAdvanced(defName) {
     for (let j = i + 1; j < available.length; j++) {
       const a1 = available[i];
       const a2 = available[j];
-      const keep = matrixVal(defName, a1) >= matrixVal(defName, a2) ? a1 : a2;
-      const score = Math.max(matrixVal(defName, a1), matrixVal(defName, a2));
+      const keep = matrixVal(defName, a1, true) >= matrixVal(defName, a2, true) ? a1 : a2;
+      const score = Math.max(matrixVal(defName, a1, true), matrixVal(defName, a2, true));
       const remA = availableUserNames().filter(n => n !== defName);
       const remB = availableOppNames().filter(n => n !== keep && n !== (oppDefenderCard ? oppDefenderCard.dataset.name : ''));
-      const total = score + computeMinTotal(remA, remB);
+      const total = score + computeMinTotal(remA, remB, {}, true);
       if (total < bestVal) {
         bestVal = total;
         bestPair = [a1, a2];
@@ -382,7 +420,7 @@ function chooseAttackersAdvanced(defName) {
 function chooseAcceptedBasic(userCards) {
   if (!oppDefenderCard) return userCards[Math.floor(Math.random() * userCards.length)];
   const bName = oppDefenderCard.dataset.name;
-  const scores = userCards.map(c => matrixVal(c.dataset.name, bName));
+  const scores = userCards.map(c => matrixVal(c.dataset.name, bName, true));
   return scores[0] <= scores[1] ? userCards[0] : userCards[1];
 }
 
@@ -394,7 +432,7 @@ function chooseAcceptedAdvanced(userCards) {
   userCards.forEach(card => {
     const remA = availableUserNames().filter(n => n !== card.dataset.name);
     const remB = availableOppNames().filter(n => n !== bName);
-    const val = matrixVal(card.dataset.name, bName) + computeMinTotal(remA, remB);
+    const val = matrixVal(card.dataset.name, bName, true) + computeMinTotal(remA, remB, {}, true);
     if (val < bestVal) {
       bestVal = val;
       best = card;
@@ -545,6 +583,7 @@ function restoreMatrix() {
     current.replaceWith(origMatrixTable.cloneNode(true));
   }
   matrixData = origMatrix.map(r => r.slice());
+  oppMatrixData = origOppMatrix.map(r => r.slice());
   teamAList = origTeamA.slice();
   teamBList = origTeamB.slice();
 }
@@ -582,7 +621,10 @@ function resetPairings() {
   document.body.classList.remove('finished');
   const chooser = document.getElementById('ai-choice');
   if (chooser) chooser.style.display = '';
+  const advMenu = document.getElementById('advanced-menu');
+  if (advMenu) advMenu.style.display = 'none';
   aiType = null;
+  generateOppMatrix();
   setupArmySelection();
 }
 
