@@ -49,8 +49,8 @@ option {
     vertical-align: middle;
 }
 
-/* Keep score numbers black but headers inherit the page colour */
-.matrix-table td {
+/* Keep score numbers black but headers and averages inherit the page colour */
+.matrix-table td:not(.avg-cell) {
     color: #000;
 }
 
@@ -70,11 +70,11 @@ option {
 .army-name {
     font-size: 12px;
 }
-.r { background-color: #ffb3b3; }
-.o { background-color: #ffc966; }
-.y { background-color: #ffff99; }
-.lg { background-color: #ccffcc; }
-.dg { background-color: #66cc66; }
+.r { background-color: #cc6666; }
+.o { background-color: #cc9966; }
+.y { background-color: #cccc66; }
+.lg { background-color: #99cc99; }
+.dg { background-color: #669966; }
 .army-row {
     display: flex;
     justify-content: center;
@@ -101,6 +101,7 @@ option {
 
 .avg-cell {
     display: none;
+    color: #fff;
 }
 
 .matrix-table.show-averages .avg-cell {
@@ -152,11 +153,11 @@ option {
 }
 
 .defender-slot {
-    background-color: #d4f7d4;
+    background-color: #b8e6b8;
 }
 
 .attacker-slot {
-    background-color: #f7d4d4;
+    background-color: #e6b8b8;
 }
 
 .pair-area .army-slot {
