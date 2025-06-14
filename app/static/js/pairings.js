@@ -784,7 +784,11 @@ function simulatePairings(matA, matB, typeA, typeB, withLog = false) {
 
   if (refusedPair) {
     if (withLog) log.push(`Refused: ${origTeamA[refusedPair[0]]} vs ${origTeamB[refusedPair[1]]}`);
+    totalA += matA[refusedPair[0]][refusedPair[1]];
+    totalB += matB[refusedPair[1]][refusedPair[0]];
     pairs.push(refusedPair);
+    remA = remA.filter(i => i !== refusedPair[0]);
+    remB = remB.filter(i => i !== refusedPair[1]);
   }
 
   if (remA.length === 1 && remB.length === 1) {
