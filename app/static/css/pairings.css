@@ -1,18 +1,61 @@
 body {
-    font-family: Arial, sans-serif;
+    margin: 0;
+    font-family: 'Big Shoulders Display', sans-serif;
     text-align: center;
+    background: linear-gradient(180deg, #001f3f, #2d3646);
+    color: #fff;
+}
+h1, h2 { color: #c49a59; }
+a { color: #c49a59; text-decoration: none; }
+button {
+    background: rgba(45,54,70,0.6);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.2);
+    backdrop-filter: blur(3px);
+    padding: 6px 12px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+button:hover {
+    background: rgba(179,28,28,0.4);
+}
+a:hover { color: #b31c1c; }
+
+select,
+input[type=number] {
+    background: rgba(45,54,70,0.6);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 4px;
+    padding: 4px 6px;
+    appearance: none;
+    width: 60px;
+}
+
+option {
+    color: #000;
 }
 .matrix-table {
     margin: 20px auto;
     border-collapse: collapse;
 }
-.matrix-table td, .matrix-table th {
+.matrix-table td,
+.matrix-table th {
     border: 1px solid #ccc;
     padding: 5px;
     width: 60px;
     height: 60px;
     text-align: center;
     vertical-align: middle;
+}
+
+/* Keep score numbers black but headers and averages inherit the page colour */
+.matrix-table td:not(.avg-cell) {
+    color: #000;
+}
+
+.matrix-table th {
+    color: #fff;
 }
 .army-cell {
     width: 90px;
@@ -27,11 +70,11 @@ body {
 .army-name {
     font-size: 12px;
 }
-.r { background-color: #ffb3b3; }
-.o { background-color: #ffc966; }
-.y { background-color: #ffff99; }
-.lg { background-color: #ccffcc; }
-.dg { background-color: #66cc66; }
+.r { background-color: #cc6666; }
+.o { background-color: #cc9966; }
+.y { background-color: #cccc66; }
+.lg { background-color: #99cc99; }
+.dg { background-color: #669966; }
 .army-row {
     display: flex;
     justify-content: center;
@@ -58,6 +101,7 @@ body {
 
 .avg-cell {
     display: none;
+    color: #fff;
 }
 
 .matrix-table.show-averages .avg-cell {
@@ -109,11 +153,13 @@ body {
 }
 
 .defender-slot {
-    background-color: #d4f7d4;
+    /* your selected units */
+    background-color: #2d3646;
 }
 
 .attacker-slot {
-    background-color: #f7d4d4;
+    /* opponent selected units */
+    background-color: #c49a59;
 }
 
 .pair-area .army-slot {
@@ -204,7 +250,7 @@ body {
     top: 10px;
     font-size: 32px;
     text-decoration: none;
-    color: #555;
+    color: #fff;
     display: none;
 }
 #toggle-log {

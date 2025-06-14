@@ -2,59 +2,27 @@
 <html>
 <head>
     <title>40k Pairings Simulator</title>
-    <style>
-        table { border-collapse: collapse; }
-        td, th { border: 1px solid #ccc; padding: 5px; text-align: center; width: 40px; }
-        .r { background-color: #ffb3b3; }
-        .o { background-color: #ffc966; }
-        .y { background-color: #ffff99; }
-        .lg { background-color: #ccffcc; }
-        .dg { background-color: #66cc66; }
-        body {
-            margin: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            text-align: center;
-            background: linear-gradient(135deg, #1e3c72, #2a5298);
-            color: #fff;
-        }
-        .container {
-            margin-top: 100px;
-        }
-        img.logo {
-            width: 200px;
-            display: block;
-            margin: 0 auto 40px auto;
-        }
-        a.button {
-            display: inline-block;
-            margin: 10px;
-            padding: 12px 24px;
-            background: rgba(255, 255, 255, 0.2);
-            color: #fff;
-            text-decoration: none;
-            border-radius: 30px;
-            backdrop-filter: blur(5px);
-            transition: background 0.3s ease;
-        }
-        a.button:hover {
-            background: rgba(255, 255, 255, 0.3);
-        }
-        a.button.disabled {
-            background: rgba(255, 255, 255, 0.1);
-            cursor: not-allowed;
-            pointer-events: none;
-            color: #ddd;
-        }
-    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
 </head>
 <body>
+    <div class="parallax">
+        <div class="cog depth1"></div>
+        <div class="cog depth2"></div>
+        <div class="cog depth3"></div>
+    </div>
     <div class="container">
         <img src="{{ url_for('static', filename='logo.png') }}" alt="Cawl Logo" class="logo">
-        <div>
-            <a href="{{ url_for('main.singleplayer') }}" class="button">Singleplayer</a>
-            <a href="{{ url_for('main.custom_setup') }}" class="button">Custom</a>
-            <a href="#" class="button disabled">Multiplayer</a>
+        <div class="tagline">Fast, effective Warhammer 40k pairing simulator</div>
+        <div class="tagline sub">Practice pairing against mechanized precision</div>
+        <div class="buttons">
+            <a href="{{ url_for('main.singleplayer') }}" class="button"><span class="badge">⚙</span>Singleplayer</a>
+            <a href="{{ url_for('main.custom_setup') }}" class="button"><span class="badge">🔧</span>Custom</a>
+            <a href="#" class="button disabled"><span class="badge">⚙⚙</span>Multiplayer</a>
         </div>
     </div>
+    <script src="{{ url_for('static', filename='js/home.js') }}"></script>
 </body>
 </html>

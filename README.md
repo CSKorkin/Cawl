@@ -1,6 +1,6 @@
 # 40k Pairings Simulator
 
-This repository contains the starting point for a 40k pairings simulator. The goal is to allow competitive play by simulating the defender/attacker pairing process for Warhammer 40k team tournaments.
+This repository contains the code for a 40k pairings simulator. The goal is to allow competitive play by simulating the defender/attacker pairing process for Warhammer 40k team tournaments.
 
 ## Frameworks
 
@@ -37,3 +37,14 @@ Below is a high‑level task breakdown for building the simulator:
    - Record the chosen pairings and tables for later review.
 6. **Styling and UX**
    - Improve the visual presentation and colour‑coding.
+
+## Assets
+
+The home page styling expects two images under `app/static/`:
+
+- **noise.png** – a subtle monochrome noise texture roughly 600x600px used to hide gradient banding.
+- **cog.png** – a transparent PNG of a gear about 600x600px for the parallax effect.
+
+Place these files in the `app/static` directory so the references in `home.css` work correctly.
+
+The `home.js` script adjusts CSS variables based on the browser height so the radial gradient covers the screen without banding.
