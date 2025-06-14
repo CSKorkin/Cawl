@@ -743,6 +743,7 @@ function simulatePairings(matA, matB, typeA, typeB, withLog = false) {
   let totalB = 0;
   const pairs = [];
   const log = [];
+  let refusedPair = null;
 
   for (let step = 0; step < 3; step++) {
     const defA = chooseDefenderSim(typeA, remA, remB, matA, true);
@@ -774,9 +775,16 @@ function simulatePairings(matA, matB, typeA, typeB, withLog = false) {
     totalB += matB[defB][accB];
     pairs.push([defA, accA]);
     pairs.push([accB, defB]);
-
     remA = remA.filter(i => i !== defA && i !== accB);
     remB = remB.filter(i => i !== defB && i !== accA);
+    if (step === 2) {
+      refusedPair = [rejB, rejA];
+    }
+  }
+
+  if (refusedPair) {
+    if (withLog) log.push(`Refused: ${origTeamA[refusedPair[0]]} vs ${origTeamB[refusedPair[1]]}`);
+    pairs.push(refusedPair);
   }
 
   if (remA.length === 1 && remB.length === 1) {
@@ -809,7 +817,9 @@ function computeScoreScale() {
   const advRes = simulatePairings(origMatrix, origOppMatrix, 'advanced', 'advanced', true);
   baseline5 = advRes.totalA;
   advPairings = advRes.pairs;
-  advLogLines = advRes.log;
+  advLogLines = advRes.log.slice();
+  advLogLines.unshift(`Average Random vs Advanced: ${baseline1.toFixed(2)}`);
+  advLogLines.unshift(`Advanced vs Advanced Total: ${baseline5}`);
 }
 
 function computePlayerTotal() {
@@ -832,7 +842,7 @@ function showRating() {
   if (rating < 1) rating = 1;
   if (rating > 5) rating = 5;
   let text = `Pairing Score: ${rating.toFixed(2)}/5`;
-  if (baseline5 > baseline1 && playerTotal >= baseline5 && rating >= 5)
+  if (baseline5 > baseline1 && playerTotal >= baseline5 && rating === 5)
     text += ' - You outpaired the algorithm!';
   const el = document.getElementById('score-result');
   if (el) el.textContent = text;
