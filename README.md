@@ -17,25 +17,6 @@ python run.py
 
 The application will start a local development server.
 
-## Tasks
-
-Below is a high‑level task breakdown for building the simulator:
-
-1. **Multiplayer Mode**
-   - Allow two users to connect and perform the pairing steps.
-2. **Server Hosting**
-   - Switch to a production WSGI server (e.g., Gunicorn) and place the flask container behind a reverse proxy such as Nginx
-      - Prepare a WSGI entry point
-      - Install Gunicorn and dependencies
-      - Set up a production environment.
-      - Disable debug mode by removing debug=True or setting FLASK_ENV=production.
-      - Choose a hosting provider (e.g., a cloud VM, Docker host, or a PaaS like Heroku).
-      - Configure a reverse proxy (Nginx or equivalent) to forward traffic to Gunicorn.
-      - Open ports 80/443 and, if needed, obtain an SSL certificate (Let’s Encrypt is common).
-      - Deploy and manage the service.
-2. **Styling and UX**
-   - Improve the visual presentation and colour‑coding.
-
 ## Assets
 
 The home page styling expects two images under `app/static/`:
