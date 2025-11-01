@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, current_app, request
-from .simulator import Army, PairingMatrix
+from .simulator import Army, simulate_pairings
 import os
 import random
 
@@ -34,14 +34,15 @@ def index():
 def singleplayer():
     team_a = load_armies()
     team_b = load_armies()
-    matrix = PairingMatrix.random(team_a)
-    row_avgs = matrix.matrix.mean(axis=1).round(1).tolist()
-    col_avgs = matrix.matrix.mean(axis=0).round(1).tolist()
+    matrix_a, matrix_b = simulate_pairings(team_a, team_b)
+    row_avgs = matrix_a.matrix.mean(axis=1).round(1).tolist()
+    col_avgs = matrix_a.matrix.mean(axis=0).round(1).tolist()
     return render_template(
         'pairings.html',
         team_a=team_a,
         team_b=team_b,
-        matrix=matrix.matrix.tolist(),
+        matrix=matrix_a.matrix.tolist(),
+        opp_matrix=matrix_b.matrix.tolist(),
         row_avgs=row_avgs,
         col_avgs=col_avgs,
     )
@@ -73,6 +74,7 @@ def custom_setup():
             team_a=team_a,
             team_b=team_b,
             matrix=matrix,
+            opp_matrix=np.array(matrix).T.tolist(),
             row_avgs=row_avgs,
             col_avgs=col_avgs,
         )

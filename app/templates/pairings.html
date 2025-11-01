@@ -123,5 +123,6 @@
   window.origMatrix = {{ matrix|tojson }};
   window.origTeamA = {{ team_a|map(attribute='name')|list|tojson }};
   window.origTeamB = {{ team_b|map(attribute='name')|list|tojson }};
+  window.origOppMatrix = {{ opp_matrix|tojson }};
 </script>
 {% endblock %}
