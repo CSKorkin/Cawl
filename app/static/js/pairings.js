@@ -18,6 +18,7 @@ let origBoardHTML = '';
 let aiType = null;
 let variance = 3;
 let oppMatrixData = [];
+let baseOppMatrix = [];
 let origOppMatrix = [];
 let baseline1 = 0;
 let baseline5 = 0;
@@ -129,7 +130,10 @@ document.addEventListener('DOMContentLoaded', () => {
   origMatrix = window.origMatrix || [];
   origTeamA = window.origTeamA || [];
   origTeamB = window.origTeamB || [];
+  baseOppMatrix = (window.origOppMatrix || []).map(row => row.slice());
+  origOppMatrix = baseOppMatrix.map(row => row.slice());
   matrixData = origMatrix.map(r => r.slice());
+  oppMatrixData = origOppMatrix.map(r => r.slice());
   teamAList = origTeamA.slice();
   teamBList = origTeamB.slice();
   const tbl = document.querySelector('.matrix-table');
@@ -198,8 +202,8 @@ function updateMatrixAfterPair(aName, bName) {
   matrixData.splice(rowIdx, 1);
   matrixData.forEach(row => row.splice(colIdx, 1));
   if (oppMatrixData.length) {
-    oppMatrixData.splice(rowIdx, 1);
-    oppMatrixData.forEach(row => row.splice(colIdx, 1));
+    oppMatrixData.splice(colIdx, 1);
+    oppMatrixData.forEach(row => row.splice(rowIdx, 1));
   }
 
   const table = document.querySelector('.matrix-table');
@@ -242,7 +246,7 @@ function updateAverages() {
 }
 
 function generateOppMatrix() {
-  origOppMatrix = origMatrix.map(row =>
+  origOppMatrix = baseOppMatrix.map(row =>
     row.map(val => {
       let newVal = val;
       if (Math.random() < 0.5) {
@@ -298,8 +302,12 @@ function matrixVal(aName, bName, useOpp = false) {
   const i = rowIndex(aName);
   const j = colIndex(bName);
   if (i === -1 || j === -1) return 0;
-  const mat = useOpp ? oppMatrixData : matrixData;
-  return mat[i][j];
+  if (useOpp) {
+    if (!oppMatrixData.length || !oppMatrixData[0]) return 0;
+    if (!oppMatrixData[j]) return 0;
+    return oppMatrixData[j][i];
+  }
+  return matrixData[i][j];
 }
 
 function computeMinTotal(aNames, bNames, memo = {}, useOpp = false) {
