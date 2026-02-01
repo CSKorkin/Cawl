@@ -15,15 +15,6 @@ let origMatrixTable = null;
 let origUserHandHTML = '';
 let origOppHandHTML = '';
 let origBoardHTML = '';
-let aiType = null;
-let variance = 3;
-let oppMatrixData = [];
-let baseOppMatrix = [];
-let origOppMatrix = [];
-let baseline1 = 0;
-let baseline5 = 0;
-let advPairings = [];
-let advLogLines = [];
 
 function scoreClass(val) {
   if (val <= 4) return 'r-text';
@@ -40,7 +31,6 @@ function clearSelections(container) {
 }
 
 function setupArmySelection() {
-  // User army selection for defenders/attackers
   document.querySelectorAll('#user-hand .army-slot').forEach((slot) => {
     slot.addEventListener('click', () => {
       if (phase === 'defender') {
@@ -55,7 +45,6 @@ function setupArmySelection() {
     });
   });
 
-  // Opponent attacker selection (attach once while in opponent-hand)
   document.querySelectorAll('#opponent-hand .army-slot').forEach((slot) => {
     slot.addEventListener('click', () => {
       if (phase === 'accept' && slot.closest('#opponent-attackers')) {
@@ -64,39 +53,6 @@ function setupArmySelection() {
         document.getElementById('confirm-accept').style.display = 'inline-block';
       }
     });
-  });
-}
-
-function setupAIChoice() {
-  const chooser = document.getElementById('ai-choice');
-  if (!chooser) return;
-  const btn = document.getElementById('choose-ai');
-  const advMenu = document.getElementById('advanced-menu');
-  const pairArea = document.getElementById('pair-area');
-  const uHand = document.getElementById('user-hand');
-  const oHand = document.getElementById('opponent-hand');
-  const conf = document.getElementById('confirm-buttons');
-  pairArea.style.display = 'none';
-  uHand.style.display = 'none';
-  oHand.style.display = 'none';
-  conf.style.display = 'none';
-  const sel = document.getElementById('ai-select');
-  sel.addEventListener('change', () => {
-    if (advMenu)
-      advMenu.style.display = sel.value === 'advanced' ? 'block' : 'none';
-  });
-  btn.addEventListener('click', () => {
-    aiType = sel.value;
-    if (advMenu && sel.value === 'advanced') {
-      variance = parseInt(document.getElementById('variance-input').value) || 0;
-    }
-    generateOppMatrix();
-    computeScoreScale();
-    chooser.style.display = 'none';
-    pairArea.style.display = '';
-    uHand.style.display = '';
-    oHand.style.display = '';
-    conf.style.display = '';
   });
 }
 
@@ -130,10 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
   origMatrix = window.origMatrix || [];
   origTeamA = window.origTeamA || [];
   origTeamB = window.origTeamB || [];
-  baseOppMatrix = (window.origOppMatrix || []).map(row => row.slice());
-  origOppMatrix = baseOppMatrix.map(row => row.slice());
   matrixData = origMatrix.map(r => r.slice());
-  oppMatrixData = origOppMatrix.map(r => r.slice());
   teamAList = origTeamA.slice();
   teamBList = origTeamB.slice();
   const tbl = document.querySelector('.matrix-table');
@@ -144,7 +97,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (oHand) origOppHandHTML = oHand.innerHTML;
   const board = document.getElementById('pairings-board');
   if (board) origBoardHTML = board.innerHTML;
-  setupAIChoice();
   setupArmySelection();
   setupAverageToggle();
   setupLogToggle();
@@ -153,8 +105,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (resetBtn) resetBtn.addEventListener('click', resetPairings);
   const newBtn = document.getElementById('new-btn');
   if (newBtn) newBtn.addEventListener('click', () => window.location.reload());
-  const advBtn = document.getElementById('show-adv-btn');
-  if (advBtn) advBtn.addEventListener('click', showAdvancedInfo);
 });
 
 function setupConfirmButtons() {
@@ -162,12 +112,9 @@ function setupConfirmButtons() {
   const confirmAtk = document.getElementById('confirm-attackers');
   const confirmAcc = document.getElementById('confirm-accept');
 
-  if (confirmDef)
-    confirmDef.addEventListener('click', confirmDefender);
-  if (confirmAtk)
-    confirmAtk.addEventListener('click', confirmAttackers);
-  if (confirmAcc)
-    confirmAcc.addEventListener('click', confirmAccept);
+  if (confirmDef) confirmDef.addEventListener('click', confirmDefender);
+  if (confirmAtk) confirmAtk.addEventListener('click', confirmAttackers);
+  if (confirmAcc) confirmAcc.addEventListener('click', confirmAccept);
 }
 
 function moveCard(card, targetId) {
@@ -180,10 +127,15 @@ function moveCard(card, targetId) {
 }
 
 function chooseRandomCard(selector) {
-  const cards = document.querySelectorAll(selector);
+  const cards = Array.from(document.querySelectorAll(selector));
   if (cards.length === 0) return null;
   const idx = Math.floor(Math.random() * cards.length);
   return cards[idx];
+}
+
+function chooseRandomCards(cards, count) {
+  const shuffled = cards.slice().sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count);
 }
 
 function addLog(msg) {
@@ -201,10 +153,6 @@ function updateMatrixAfterPair(aName, bName) {
   teamBList.splice(colIdx, 1);
   matrixData.splice(rowIdx, 1);
   matrixData.forEach(row => row.splice(colIdx, 1));
-  if (oppMatrixData.length) {
-    oppMatrixData.splice(colIdx, 1);
-    oppMatrixData.forEach(row => row.splice(rowIdx, 1));
-  }
 
   const table = document.querySelector('.matrix-table');
   const bodyRows = table.querySelectorAll('tbody tr:not(.avg-row)');
@@ -245,22 +193,6 @@ function updateAverages() {
   }
 }
 
-function generateOppMatrix() {
-  origOppMatrix = baseOppMatrix.map(row =>
-    row.map(val => {
-      let newVal = val;
-      if (Math.random() < 0.5) {
-        const diff = Math.floor(Math.random() * (variance * 2 + 1)) - variance;
-        newVal += diff;
-        if (newVal < 2) newVal = 2;
-        if (newVal > 18) newVal = 18;
-      }
-      return newVal;
-    })
-  );
-  oppMatrixData = origOppMatrix.map(r => r.slice());
-}
-
 function showScores() {
   const slots = document.querySelectorAll('#pairings-board .pair-slot');
   slots.forEach(slot => {
@@ -278,200 +210,17 @@ function showScores() {
   });
 }
 
-function availableUserNames() {
-  return Array.from(document.querySelectorAll('#user-hand .army-slot')).map(
-    c => c.dataset.name
-  );
-}
-
-function availableOppNames() {
-  return Array.from(document.querySelectorAll('#opponent-hand .army-slot')).map(
-    c => c.dataset.name
-  );
-}
-
-function rowIndex(name) {
-  return teamAList.indexOf(name);
-}
-
-function colIndex(name) {
-  return teamBList.indexOf(name);
-}
-
-function matrixVal(aName, bName, useOpp = false) {
-  const i = rowIndex(aName);
-  const j = colIndex(bName);
-  if (i === -1 || j === -1) return 0;
-  if (useOpp) {
-    if (!oppMatrixData.length || !oppMatrixData[0]) return 0;
-    if (!oppMatrixData[j]) return 0;
-    return oppMatrixData[j][i];
-  }
-  return matrixData[i][j];
-}
-
-function computeMinTotal(aNames, bNames, memo = {}, useOpp = false) {
-  const key = aNames.join(',') + '|' + bNames.join(',') + '|' + useOpp;
-  if (memo[key] !== undefined) return memo[key];
-  if (aNames.length === 0) return 0;
-  const a = aNames[0];
-  const restA = aNames.slice(1);
-  let best = Infinity;
-  for (let i = 0; i < bNames.length; i++) {
-    const b = bNames[i];
-    const restB = bNames.slice();
-    restB.splice(i, 1);
-    const val = matrixVal(a, b, useOpp) + computeMinTotal(restA, restB, memo, useOpp);
-    if (val < best) best = val;
-  }
-  memo[key] = best;
-  return best;
-}
-
-function chooseDefenderBasic() {
-  const cards = availableOppNames();
-  const userNames = availableUserNames();
-  const userDef = defenderCard ? defenderCard.dataset.name : null;
-  if (userDef) {
-    const idx = userNames.indexOf(userDef);
-    if (idx !== -1) userNames.splice(idx, 1);
-  }
-  let best = null;
-  let bestVal = Infinity;
-  cards.forEach(name => {
-    const col = colIndex(name);
-    let maxMin = -Infinity;
-    for (let i = 0; i < userNames.length; i++) {
-      for (let j = i + 1; j < userNames.length; j++) {
-        const val = Math.min(
-          matrixVal(userNames[i], name, true),
-          matrixVal(userNames[j], name, true)
-        );
-        if (val > maxMin) maxMin = val;
-      }
-    }
-    if (maxMin < bestVal) {
-      bestVal = maxMin;
-      best = name;
-    }
-  });
-  if (!best) return chooseRandomCard('#opponent-hand .army-slot');
-  return document.querySelector(`#opponent-hand .army-slot[data-name="${best}"]`);
-}
-
-function chooseDefenderAdvanced() {
-  const cards = availableOppNames();
-  let bestCard = null;
-  let bestVal = Infinity;
-  const userDef = defenderCard ? defenderCard.dataset.name : null;
-  const userNames = availableUserNames();
-  if (userDef) {
-    const idx = userNames.indexOf(userDef);
-    if (idx !== -1) userNames.splice(idx, 1);
-  }
-  cards.forEach(name => {
-    const remB = availableOppNames().filter(n => n !== name);
-    const score = matrixVal(userDef, name, true) +
-      computeMinTotal(userNames, remB, {}, true);
-    if (score < bestVal) {
-      bestVal = score;
-      bestCard = name;
-    }
-  });
-  if (!bestCard) return chooseRandomCard('#opponent-hand .army-slot');
-  return document.querySelector(`#opponent-hand .army-slot[data-name="${bestCard}"]`);
-}
-
-function chooseAttackersBasic(defName) {
-  const oppCards = availableOppNames().filter(
-    n => n !== (oppDefenderCard ? oppDefenderCard.dataset.name : '')
-  );
-  let bestPair = [];
-  let bestVal = Infinity;
-  for (let i = 0; i < oppCards.length; i++) {
-    for (let j = i + 1; j < oppCards.length; j++) {
-      const val = Math.max(
-        matrixVal(defName, oppCards[i], true),
-        matrixVal(defName, oppCards[j], true)
-      );
-      if (val < bestVal) {
-        bestVal = val;
-        bestPair = [oppCards[i], oppCards[j]];
-      }
-    }
-  }
-  if (bestPair.length === 0) {
-    bestPair = oppCards.slice(0, 2);
-  }
-  return bestPair.map(n => document.querySelector(`#opponent-hand .army-slot[data-name="${n}"]`));
-}
-
-function chooseAttackersAdvanced(defName) {
-  const available = availableOppNames().filter(n => n !== (oppDefenderCard ? oppDefenderCard.dataset.name : ''));
-  let bestPair = [];
-  let bestVal = Infinity;
-  for (let i = 0; i < available.length; i++) {
-    for (let j = i + 1; j < available.length; j++) {
-      const a1 = available[i];
-      const a2 = available[j];
-      const keep = matrixVal(defName, a1, true) >= matrixVal(defName, a2, true) ? a1 : a2;
-      const score = Math.max(matrixVal(defName, a1, true), matrixVal(defName, a2, true));
-      const remA = availableUserNames().filter(n => n !== defName);
-      const remB = availableOppNames().filter(n => n !== keep && n !== (oppDefenderCard ? oppDefenderCard.dataset.name : ''));
-      const total = score + computeMinTotal(remA, remB, {}, true);
-      if (total < bestVal) {
-        bestVal = total;
-        bestPair = [a1, a2];
-      }
-    }
-  }
-  if (bestPair.length === 0) {
-    bestPair = available.slice(0, 2);
-  }
-  return bestPair.map(n => document.querySelector(`#opponent-hand .army-slot[data-name="${n}"]`));
-}
-
-function chooseAcceptedBasic(userCards) {
-  if (!oppDefenderCard) return userCards[Math.floor(Math.random() * userCards.length)];
-  const bName = oppDefenderCard.dataset.name;
-  const scores = userCards.map(c => matrixVal(c.dataset.name, bName, true));
-  return scores[0] <= scores[1] ? userCards[0] : userCards[1];
-}
-
-function chooseAcceptedAdvanced(userCards) {
-  if (!oppDefenderCard) return chooseAcceptedBasic(userCards);
-  const bName = oppDefenderCard.dataset.name;
-  let best = null;
-  let bestVal = Infinity;
-  userCards.forEach(card => {
-    const remA = availableUserNames().filter(n => n !== card.dataset.name);
-    const remB = availableOppNames().filter(n => n !== bName);
-    const val = matrixVal(card.dataset.name, bName, true) + computeMinTotal(remA, remB, {}, true);
-    if (val < bestVal) {
-      bestVal = val;
-      best = card;
-    }
-  });
-  return best || userCards[0];
-}
-
 function aiChooseDefender() {
-  if (aiType === 'basic') return chooseDefenderBasic();
-  if (aiType === 'advanced') return chooseDefenderAdvanced();
   return chooseRandomCard('#opponent-hand .army-slot');
 }
 
-function aiChooseAttackers(defName) {
-  if (aiType === 'basic') return chooseAttackersBasic(defName);
-  if (aiType === 'advanced') return chooseAttackersAdvanced(defName);
-  const a = chooseRandomCard('#opponent-hand .army-slot');
-  const b = chooseRandomCard('#opponent-hand .army-slot');
-  return [a, b];
+function aiChooseAttackers() {
+  const available = Array.from(document.querySelectorAll('#opponent-hand .army-slot'))
+    .filter(card => card !== oppDefenderCard);
+  return chooseRandomCards(available, 2);
 }
 
 function aiChooseAccepted(cards) {
-  if (aiType === 'basic') return chooseAcceptedBasic(cards);
-  if (aiType === 'advanced') return chooseAcceptedAdvanced(cards);
   return cards[Math.floor(Math.random() * cards.length)];
 }
 
@@ -484,7 +233,6 @@ function confirmDefender() {
   document.getElementById('confirm-defender').style.display = 'none';
   phase = 'attackers';
 
-  // Opponent defender
   oppDefenderCard = aiChooseDefender();
   if (oppDefenderCard) moveCard(oppDefenderCard, 'opponent-defender');
   addLog(`Defenders: ${defenderCard.dataset.name} vs ${oppDefenderCard ? oppDefenderCard.dataset.name : 'None'}`);
@@ -503,8 +251,7 @@ function confirmAttackers() {
   inFinalRound =
     document.querySelectorAll('#pairings-board .pair-slot.empty').length === 4;
 
-  // Opponent attackers
-  oppAttackerCards = aiChooseAttackers(defenderCard.dataset.name);
+  oppAttackerCards = aiChooseAttackers();
   oppAttackerCards.forEach((card, idx) => {
     if (card) moveCard(card, `opponent-attacker${idx + 1}`);
   });
@@ -519,7 +266,6 @@ function confirmAttackers() {
       updateMatrixAfterPair(lastUser.dataset.name, lastOpp.dataset.name);
     }
   }
-
 }
 
 function confirmAccept() {
@@ -546,11 +292,9 @@ function confirmAccept() {
     userRefused.classList.remove('selected');
   }
 
-  // Our army should always be displayed on top in the pairing board
   addPairing(defenderCard, oppAccepted);
   addLog(`Accepted pairing: ${defenderCard.dataset.name} vs ${oppAccepted.dataset.name}`);
   updateMatrixAfterPair(defenderCard.dataset.name, oppAccepted.dataset.name);
-  // show our attacker on top when paired with the opponent defender
   addPairing(oppAcceptedUser, oppDefenderCard);
   addLog(`Accepted pairing: ${oppAcceptedUser.dataset.name} vs ${oppDefenderCard.dataset.name}`);
   updateMatrixAfterPair(oppAcceptedUser.dataset.name, oppDefenderCard.dataset.name);
@@ -597,7 +341,6 @@ function restoreMatrix() {
     current.replaceWith(origMatrixTable.cloneNode(true));
   }
   matrixData = origMatrix.map(r => r.slice());
-  oppMatrixData = origOppMatrix.map(r => r.slice());
   teamAList = origTeamA.slice();
   teamBList = origTeamB.slice();
 }
@@ -613,12 +356,12 @@ function resetPairings() {
   if (panel) panel.style.display = '';
   const toggleBtn = document.getElementById('toggle-log');
   if (toggleBtn) toggleBtn.textContent = 'Hide Log';
-  document.getElementById('user-hand').style.display = 'none';
-  document.getElementById('opponent-hand').style.display = 'none';
+  document.getElementById('user-hand').style.display = '';
+  document.getElementById('opponent-hand').style.display = '';
   const area = document.getElementById('pair-area');
-  if (area) area.style.display = 'none';
+  if (area) area.style.display = '';
   const conf = document.getElementById('confirm-buttons');
-  if (conf) conf.style.display = 'none';
+  if (conf) conf.style.display = '';
   document.getElementById('user-heading').style.display = '';
   document.getElementById('opp-heading').style.display = '';
   resetCentral();
@@ -633,17 +376,6 @@ function resetPairings() {
   const back = document.getElementById('back-btn');
   if (back) back.style.display = 'none';
   document.body.classList.remove('finished');
-  const scoreEl = document.getElementById('score-result');
-  if (scoreEl) scoreEl.textContent = '';
-  const advBtn = document.getElementById('show-adv-btn');
-  if (advBtn) advBtn.style.display = 'none';
-  const advInfo = document.getElementById('adv-info');
-  if (advInfo) advInfo.style.display = 'none';
-  const chooser = document.getElementById('ai-choice');
-  if (chooser) chooser.style.display = '';
-  const advMenu = document.getElementById('advanced-menu');
-  if (advMenu) advMenu.style.display = 'none';
-  aiType = null;
   setupArmySelection();
 }
 
@@ -663,7 +395,6 @@ function finishPairings() {
   const back = document.getElementById('back-btn');
   if (back) back.style.display = 'block';
   document.body.classList.add('finished');
-  showRating();
 }
 
 function adjustPairNames() {
@@ -676,216 +407,4 @@ function adjustPairNames() {
         name.style.marginTop = '0';
       }
     });
-}
-
-function computeMinTotalIdx(aList, bList, matrix, memo = {}) {
-  const key = aList.join(',') + '|' + bList.join(',');
-  if (memo[key] !== undefined) return memo[key];
-  if (aList.length === 0) return 0;
-  const a = aList[0];
-  const restA = aList.slice(1);
-  let best = Infinity;
-  for (let i = 0; i < bList.length; i++) {
-    const b = bList[i];
-    const restB = bList.slice();
-    restB.splice(i, 1);
-    const val = matrix[a][b] + computeMinTotalIdx(restA, restB, matrix, memo);
-    if (val < best) best = val;
-  }
-  memo[key] = best;
-  return best;
-}
-
-function chooseDefenderSim(type, selfList, oppList, matrix) {
-  if (selfList.length === 1) return selfList[0];
-  if (type !== 'advanced') {
-    return selfList[Math.floor(Math.random() * selfList.length)];
-  }
-  let best = selfList[0];
-  let bestVal = Infinity;
-  for (const d of selfList) {
-    const remSelf = selfList.filter(x => x !== d);
-    const score = computeMinTotalIdx(oppList, remSelf, matrix);
-    if (score < bestVal) {
-      bestVal = score;
-      best = d;
-    }
-  }
-  return best;
-}
-
-function chooseAttackersSim(type, selfList, defIdx, matrix, oppList) {
-  const avail = selfList.filter(i => i !== defIdx);
-  if (avail.length <= 2) return avail.slice(0, 2);
-  if (type !== 'advanced') {
-    const shuffled = avail.sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, 2);
-  }
-  let best = [avail[0], avail[1]];
-  let bestVal = Infinity;
-  for (let i = 0; i < avail.length; i++) {
-    for (let j = i + 1; j < avail.length; j++) {
-      const a1 = avail[i];
-      const a2 = avail[j];
-      const v1 = matrix[defIdx][a1];
-      const v2 = matrix[defIdx][a2];
-      const keep = v1 >= v2 ? a1 : a2;
-      const score = Math.max(v1, v2);
-      const remA = oppList.filter(n => n !== defIdx);
-      const remB = selfList.filter(n => n !== keep && n !== defIdx);
-      const total = score + computeMinTotalIdx(remA, remB, matrix);
-      if (total < bestVal) {
-        bestVal = total;
-        best = [a1, a2];
-      }
-    }
-  }
-  return best;
-}
-
-function chooseAcceptedSim(type, pair, defIdx, matrix, selfRemain, oppRemain) {
-  if (pair.length === 1) return pair[0];
-  if (type !== 'advanced') {
-    return pair[Math.floor(Math.random() * pair.length)];
-  }
-  let best = pair[0];
-  let bestVal = Infinity;
-  pair.forEach(a => {
-    const remOpp = oppRemain.filter(x => x !== a);
-    const score = matrix[defIdx][a] + computeMinTotalIdx(selfRemain, remOpp, matrix);
-    if (score < bestVal) {
-      bestVal = score;
-      best = a;
-    }
-  });
-  return best;
-}
-
-function simulatePairings(matA, matB, typeA, typeB, withLog = false) {
-  let remA = matA.map((_, i) => i);
-  let remB = matB.map((_, i) => i);
-  let totalA = 0;
-  let totalB = 0;
-  const pairs = [];
-  const log = [];
-  let refusedPair = null;
-
-  for (let step = 0; step < 3; step++) {
-    const defA = chooseDefenderSim(typeA, remA, remB, matA);
-    const defB = chooseDefenderSim(typeB, remB, remA, matB);
-    if (withLog) {
-      const pre = ['First', 'Second', 'Third'][step];
-      log.push(`${pre} Defender for you: ${origTeamA[defA]}`);
-      log.push(`${pre} Defender for opponent: ${origTeamB[defB]}`);
-    }
-
-    const remAWithoutDef = remA.filter(i => i !== defA);
-    const remBWithoutDef = remB.filter(i => i !== defB);
-    const attBPair = chooseAttackersSim(typeB, remBWithoutDef, defA, matB, remAWithoutDef);
-    const attAPair = chooseAttackersSim(typeA, remAWithoutDef, defB, matA, remBWithoutDef);
-    const accA = chooseAcceptedSim(typeA, attBPair, defA, matA, remAWithoutDef, remBWithoutDef);
-    const accB = chooseAcceptedSim(typeB, attAPair, defB, matB, remBWithoutDef, remAWithoutDef);
-    const rejA = attBPair.find(x => x !== accA);
-    const rejB = attAPair.find(x => x !== accB);
-
-    if (withLog) {
-      const pre = ['first', 'second', 'third'][step];
-      log.push(`Your ${pre} attackers: ${origTeamB[accA]} accepted, ${origTeamB[rejA]} rejected`);
-      log.push(`Opponent's ${pre} attackers: ${origTeamA[accB]} accepted, ${origTeamA[rejB]} rejected`);
-    }
-
-    totalA += matA[defA][accA];
-    totalB += matB[accA][defA];
-    totalA += matA[accB][defB];
-    totalB += matB[defB][accB];
-    pairs.push([defA, accA]);
-    pairs.push([accB, defB]);
-    remA = remA.filter(i => i !== defA && i !== accB);
-    remB = remB.filter(i => i !== defB && i !== accA);
-    if (step === 2) {
-      refusedPair = [rejB, rejA];
-    }
-  }
-
-  if (refusedPair) {
-    if (withLog) log.push(`Refused: ${origTeamA[refusedPair[0]]} vs ${origTeamB[refusedPair[1]]}`);
-    totalA += matA[refusedPair[0]][refusedPair[1]];
-    totalB += matB[refusedPair[1]][refusedPair[0]];
-    pairs.push(refusedPair);
-    remA = remA.filter(i => i !== refusedPair[0]);
-    remB = remB.filter(i => i !== refusedPair[1]);
-  }
-
-  if (remA.length === 1 && remB.length === 1) {
-    const a = remA[0];
-    const b = remB[0];
-    if (withLog) log.push(`Forgotten: ${origTeamA[a]} vs ${origTeamB[b]}`);
-    totalA += matA[a][b];
-    totalB += matB[b][a];
-    pairs.push([a, b]);
-  }
-
-  if (withLog) {
-    log.push('');
-    log.push('Final pairings:');
-    pairs.forEach(p => {
-      log.push(`${origTeamA[p[0]]} vs ${origTeamB[p[1]]}`);
-    });
-  }
-
-  return { totalA, totalB, pairs, log };
-}
-
-function computeScoreScale() {
-  let sumRandom = 0;
-  for (let i = 0; i < 50; i++) {
-    const res = simulatePairings(origMatrix, origOppMatrix, 'advanced', 'random');
-    sumRandom += res.totalB;
-  }
-  baseline1 = sumRandom / 50;
-  const advRes = simulatePairings(origMatrix, origOppMatrix, 'advanced', 'advanced', true);
-  baseline5 = advRes.totalA;
-  advPairings = advRes.pairs;
-  advLogLines = advRes.log.slice();
-  advLogLines.unshift(`Average Random vs Advanced: ${baseline1.toFixed(2)}`);
-  advLogLines.unshift(`Advanced vs Advanced Total: ${baseline5}`);
-}
-
-function computePlayerTotal() {
-  let sum = 0;
-  document.querySelectorAll('#pairings-board .pair-slot').forEach(slot => {
-    const a = slot.dataset.a;
-    const b = slot.dataset.b;
-    if (!a || !b) return;
-    const i = origTeamA.indexOf(a);
-    const j = origTeamB.indexOf(b);
-    if (i !== -1 && j !== -1) sum += origMatrix[i][j];
-  });
-  return sum;
-}
-
-function showRating() {
-  const playerTotal = computePlayerTotal();
-  let rating = baseline5 === baseline1 ? 5 :
-    1 + ((playerTotal - baseline1) * 4) / (baseline5 - baseline1);
-  if (rating < 1) rating = 1;
-  if (rating > 5) rating = 5;
-  let text = `Pairing Score: ${rating.toFixed(2)}/5`;
-  if (baseline5 > baseline1 && playerTotal >= baseline5 && rating === 5)
-    text += ' - You outpaired the algorithm!';
-  const el = document.getElementById('score-result');
-  if (el) el.textContent = text;
-  const advBtn = document.getElementById('show-adv-btn');
-  if (advBtn) advBtn.style.display = 'inline-block';
-}
-
-function showAdvancedInfo() {
-  const panel = document.getElementById('adv-info');
-  if (!panel) return;
-  if (panel.style.display === 'none' || panel.style.display === '') {
-    panel.style.display = 'block';
-    panel.textContent = advLogLines.join('\n');
-  } else {
-    panel.style.display = 'none';
-  }
 }

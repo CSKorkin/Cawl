@@ -5,20 +5,6 @@
 {% block content %}
 <h1>Singleplayer Mode</h1>
 
-<div id="ai-choice">
-    <label for="ai-select">Opponent Algorithm:</label>
-    <select id="ai-select">
-        <option value="random">Random</option>
-        <option value="basic">Basic</option>
-        <option value="advanced">Advanced</option>
-    </select>
-    <div id="advanced-menu" style="display:none;">
-        <label for="variance-input">Variance:</label>
-        <input type="number" id="variance-input" value="5" min="0" max="10">
-    </div>
-    <button id="choose-ai">Start</button>
-</div>
-
 <a href="{{ url_for('main.index') }}" id="back-btn">&#8592;</a>
 <div id="end-buttons">
     <button id="reset-btn">Reset</button>
@@ -105,14 +91,11 @@
 </div>
 
 <h2 id="pairings-heading">Pairings</h2>
-<button id="show-adv-btn" style="display:none;">Show Advanced vs Advanced</button>
-<div id="adv-info" class="adv-info" style="display:none;"></div>
 <div id="pairings-board" class="pair-board">
     {% for i in range(8) %}
     <div class="pair-slot empty"></div>
     {% endfor %}
 </div>
-<div id="score-result" class="score-result"></div>
 
 <div class="log-panel">
     <h2>Log</h2>
@@ -123,6 +106,5 @@
   window.origMatrix = {{ matrix|tojson }};
   window.origTeamA = {{ team_a|map(attribute='name')|list|tojson }};
   window.origTeamB = {{ team_b|map(attribute='name')|list|tojson }};
-  window.origOppMatrix = {{ opp_matrix|tojson }};
 </script>
 {% endblock %}
