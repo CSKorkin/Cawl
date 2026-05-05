@@ -2,17 +2,20 @@
  * M1 demo: generate an 8×8 pairing matrix and print both team views
  * side by side with ANSI color bands.
  *
- * Run with:  npx tsx demos/m1-matrix.ts [seed]
+ * Run with:  npx tsx demos/m1-matrix.ts [seed] [--atlas]
+ *   seed:     hex integer (default 0x4040)
+ *   --atlas:  use the ordinal {1, 2, 2.5, 3, 3.5, 4, 5} score mode
  *
- * Each cell is Team A's expected score for that matchup. viewA and viewB
- * show the same 64 matchups but with independent per-cell noise, so the
- * grids differ — that asymmetry is the whole game.
+ * Each cell is Team A's expected score for that matchup. viewA is the
+ * anchor; viewB is one application of variance per cell, so viewA[i][j]
+ * and viewB[j][i] differ by at most ±3 (standard) or ±1 ordinal step
+ * (atlas) — that bounded asymmetry is the whole game.
  */
 
 import { generateMatrix, MATRIX_SIZE } from '../src/engine/matrix.js';
 import { colorBand } from '../src/engine/score.js';
 import { seed as mkSeed } from '../src/engine/rng.js';
-import type { Score } from '../src/engine/score.js';
+import type { Score, ScoreMode } from '../src/engine/score.js';
 
 // ── ANSI color helpers ────────────────────────────────────────────────────────
 
@@ -28,10 +31,13 @@ const BAND_COLOR: Record<string, string> = {
   darkGreen:  '\x1b[32m', // green
 };
 
+// Atlas values include "2.5" / "3.5", so 3-char width handles both modes.
+const CELL_WIDTH = 3;
+
 function paint(score: Score): string {
   const band = colorBand(score);
   const color = BAND_COLOR[band] ?? '';
-  const val = score.value.toString().padStart(2, ' ');
+  const val = score.value.toString().padStart(CELL_WIDTH, ' ');
   return `${color}${val}${RESET}`;
 }
 
@@ -45,12 +51,20 @@ function diffMarker(a: Score, b: Score): string {
 
 // ── Legend ────────────────────────────────────────────────────────────────────
 
-function printLegend(): void {
-  console.log(`  Legend: ${BAND_COLOR['red']}0–4${RESET} red  `
-    + `${BAND_COLOR['orange']}5–8${RESET} orange  `
-    + `${BAND_COLOR['yellow']}9–11${RESET} yellow  `
-    + `${BAND_COLOR['lightGreen']}12–15${RESET} light green  `
-    + `${BAND_COLOR['darkGreen']}16–20${RESET} dark green`);
+function printLegend(mode: ScoreMode): void {
+  if (mode === 'standard') {
+    console.log(`  Legend: ${BAND_COLOR['red']}0–4${RESET} red  `
+      + `${BAND_COLOR['orange']}5–8${RESET} orange  `
+      + `${BAND_COLOR['yellow']}9–11${RESET} yellow  `
+      + `${BAND_COLOR['lightGreen']}12–15${RESET} light green  `
+      + `${BAND_COLOR['darkGreen']}16–20${RESET} dark green`);
+  } else {
+    console.log(`  Legend: ${BAND_COLOR['red']}1${RESET} red  `
+      + `${BAND_COLOR['orange']}2${RESET} orange  `
+      + `${BAND_COLOR['yellow']}2.5/3/3.5${RESET} yellow  `
+      + `${BAND_COLOR['lightGreen']}4${RESET} light green  `
+      + `${BAND_COLOR['darkGreen']}5${RESET} dark green`);
+  }
   console.log(`  Diff markers: ${BOLD}\x1b[36m+${RESET} = A sees higher  `
     + `${BOLD}\x1b[35m-${RESET} = A sees lower  (space) = identical`);
 }
@@ -58,12 +72,15 @@ function printLegend(): void {
 // ── Grid printer ──────────────────────────────────────────────────────────────
 
 const ARMY_LABELS = ['α', 'β', 'γ', 'δ', 'ε', 'ζ', 'η', 'θ'];
+const COL_STRIDE = CELL_WIDTH + 2; // value + diff marker + separator space
 
 function printHeader(label: string): void {
   console.log(`\n  ${BOLD}${label}${RESET}`);
-  const cols = ARMY_LABELS.slice(0, MATRIX_SIZE).map(l => `${DIM}${l}${RESET} `).join(' ');
+  const cols = ARMY_LABELS.slice(0, MATRIX_SIZE)
+    .map(l => `${DIM}${l.padStart(CELL_WIDTH)}${RESET} `)
+    .join(' ');
   console.log(`        ${cols}`);
-  console.log(`       ${'─'.repeat(MATRIX_SIZE * 4)}`);
+  console.log(`       ${'─'.repeat(MATRIX_SIZE * COL_STRIDE)}`);
 }
 
 function printViewA(
@@ -73,7 +90,7 @@ function printViewA(
   printHeader("Team A's view  (row = A army, col = B army)");
   for (let i = 0; i < MATRIX_SIZE; i++) {
     const cells = viewA[i]!.map((score, j) => {
-      const bScore = viewBTransposed[i]![j]!; // viewB[j][i] transposed back
+      const bScore = viewBTransposed[i]![j]!;
       return `${paint(score)}${diffMarker(score, bScore)}`;
     }).join(' ');
     console.log(`  ${DIM}${ARMY_LABELS[i]}${RESET} ${i} │ ${cells}`);
@@ -87,7 +104,7 @@ function printViewB(
   printHeader("Team B's view  (row = B army, col = A army)");
   for (let j = 0; j < MATRIX_SIZE; j++) {
     const cells = viewB[j]!.map((score, i) => {
-      const aScore = viewATransposed[j]![i]!; // viewA[i][j] transposed
+      const aScore = viewATransposed[j]![i]!;
       return `${paint(score)}${diffMarker(score, aScore)}`;
     }).join(' ');
     console.log(`  ${DIM}${ARMY_LABELS[j]}${RESET} ${j} │ ${cells}`);
@@ -99,6 +116,7 @@ function printViewB(
 function printSummary(
   viewA: readonly (readonly Score[])[],
   viewB: readonly (readonly Score[])[],
+  mode: ScoreMode,
 ): void {
   let diffs = 0;
   let totalDelta = 0;
@@ -113,20 +131,25 @@ function printSummary(
     }
   }
   const pct = ((diffs / (MATRIX_SIZE * MATRIX_SIZE)) * 100).toFixed(0);
-  const avg = diffs > 0 ? (totalDelta / diffs).toFixed(1) : '0.0';
-  console.log(`\n  ${BOLD}Asymmetry:${RESET} ${diffs}/64 cells differ (${pct}%), average delta ${avg} points`);
+  const avg = diffs > 0 ? (totalDelta / diffs).toFixed(2) : '0.00';
+  const unit = mode === 'standard' ? 'points' : 'tier-numeric';
+  console.log(`\n  ${BOLD}Asymmetry:${RESET} ${diffs}/64 cells differ (${pct}%), average delta ${avg} ${unit}`);
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-const rawSeed = parseInt(process.argv[2] ?? '0x4040', 16);
+const args = process.argv.slice(2);
+const useAtlas = args.includes('--atlas');
+const seedArg = args.find(a => !a.startsWith('--'));
+const rawSeed = parseInt(seedArg ?? '0x4040', 16);
+const mode: ScoreMode = useAtlas ? 'atlas' : 'standard';
+
 const s = mkSeed(rawSeed);
-const { matrix } = generateMatrix(s, 'standard');
+const { matrix } = generateMatrix(s, mode);
 
-console.log(`\n${BOLD}Cawl M1 demo — pairing matrix${RESET}  seed 0x${rawSeed.toString(16).toUpperCase()}`);
-printLegend();
+console.log(`\n${BOLD}Cawl M1 demo — pairing matrix${RESET}  seed 0x${rawSeed.toString(16).toUpperCase()}  mode ${mode}`);
+printLegend(mode);
 
-// Build a transposed copy of viewB so we can compare A[i][j] vs B[j][i] inline.
 const viewBTransposed: Score[][] = Array.from({ length: MATRIX_SIZE }, (_, i) =>
   Array.from({ length: MATRIX_SIZE }, (_, j) => matrix.viewB[j]![i]!),
 );
@@ -136,5 +159,5 @@ const viewATransposed: Score[][] = Array.from({ length: MATRIX_SIZE }, (_, j) =>
 
 printViewA(matrix.viewA, viewBTransposed);
 printViewB(matrix.viewB, viewATransposed);
-printSummary(matrix.viewA, matrix.viewB);
+printSummary(matrix.viewA, matrix.viewB, mode);
 console.log();

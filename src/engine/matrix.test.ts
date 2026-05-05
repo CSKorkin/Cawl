@@ -75,9 +75,14 @@ describe('matrix.generateMatrix — cell validity', () => {
 });
 
 describe('matrix.generateMatrix — asymmetry property', () => {
-  it('viewA[i][j] and viewB[j][i] cover the same matchup with independent variance (standard)', () => {
+  // Per CLAUDE.md: "Team B sees the same matchups from their perspective with
+  // per-cell variance applied" — viewA is the anchor; viewB[j][i] is viewA[i][j]
+  // with one application of variance. So |viewA[i][j] - viewB[j][i]| ≤ 3 for
+  // standard mode and ≤ 1 ordinal step for atlas mode.
+
+  it('viewA[i][j] and viewB[j][i] differ by ≤3 in standard mode (200 seeds)', () => {
     let totalDiffs = 0;
-    for (let s = 0; s < 100; s++) {
+    for (let s = 0; s < 200; s++) {
       const { matrix } = generateMatrix(seed(s), 'standard');
       for (let i = 0; i < MATRIX_SIZE; i++) {
         for (let j = 0; j < MATRIX_SIZE; j++) {
@@ -86,19 +91,30 @@ describe('matrix.generateMatrix — asymmetry property', () => {
           expect(a.mode).toBe('standard');
           expect(b.mode).toBe('standard');
           if (a.mode === 'standard' && b.mode === 'standard') {
-            // Each view is within ±3 of truth → max distance between the two is 6.
-            expect(Math.abs(a.value - b.value)).toBeLessThanOrEqual(6);
+            expect(Math.abs(a.value - b.value)).toBeLessThanOrEqual(3);
             if (a.value !== b.value) totalDiffs++;
           }
         }
       }
     }
-    // Overwhelming probability that at least one cell differs across 100 seeds.
+    // Overwhelming probability that at least one cell differs across 200 seeds.
     expect(totalDiffs).toBeGreaterThan(0);
   });
 
-  it('atlas views are within ±2 ordinal steps of each other', () => {
-    for (let s = 0; s < 50; s++) {
+  it('regression: seed 0x102 cell viewA[0][1] vs viewB[1][0] differ by ≤3', () => {
+    // User-reported bug: with the original "independent variance from a hidden
+    // truth" model, this seed produced viewA[0][1] = 13, viewB[1][0] = 8 (Δ=5),
+    // violating the ±3 bound that CLAUDE.md prescribes.
+    const { matrix } = generateMatrix(seed(0x102), 'standard');
+    const a = matrix.viewA[0]![1]!;
+    const b = matrix.viewB[1]![0]!;
+    if (a.mode === 'standard' && b.mode === 'standard') {
+      expect(Math.abs(a.value - b.value)).toBeLessThanOrEqual(3);
+    }
+  });
+
+  it('atlas views are within ±1 ordinal step of each other (100 seeds)', () => {
+    for (let s = 0; s < 100; s++) {
       const { matrix } = generateMatrix(seed(s), 'atlas');
       for (let i = 0; i < MATRIX_SIZE; i++) {
         for (let j = 0; j < MATRIX_SIZE; j++) {
@@ -107,8 +123,7 @@ describe('matrix.generateMatrix — asymmetry property', () => {
           if (a.mode === 'atlas' && b.mode === 'atlas') {
             const idxA = ATLAS_TIERS.indexOf(a.value);
             const idxB = ATLAS_TIERS.indexOf(b.value);
-            // Each is within ±1 ordinal step of truth → at most ±2 apart.
-            expect(Math.abs(idxA - idxB)).toBeLessThanOrEqual(2);
+            expect(Math.abs(idxA - idxB)).toBeLessThanOrEqual(1);
           }
         }
       }

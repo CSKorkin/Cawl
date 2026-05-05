@@ -4,10 +4,14 @@ import type { RngState } from './rng.js';
 
 export interface Matrix {
   readonly mode: ScoreMode;
-  // viewA[aArmy][bArmy] = team A's expected score for A's army i vs B's army j
+  // viewA[aArmy][bArmy] = team A's expected score for A's army i vs B's army j.
+  // This is the anchor — drawn directly from the bell-curve generator.
   readonly viewA: readonly (readonly Score[])[];
-  // viewB[bArmy][aArmy] = team B's expected score for B's army j vs A's army i
-  // B reads its own armies down the rows, so axes are transposed relative to viewA.
+  // viewB[bArmy][aArmy] = team B's expected score for the same matchup.
+  // Each cell is a single application of the score-mode's variance to the
+  // corresponding viewA cell, so |viewA[i][j] - viewB[j][i]| ≤ the mode's
+  // variance bound (±3 standard, ±1 ordinal step atlas). B reads its own
+  // armies down the rows, hence the transposed indexing.
   readonly viewB: readonly (readonly Score[])[];
 }
 
@@ -20,8 +24,8 @@ export function generateMatrix(
 ): { rng: RngState; matrix: Matrix } {
   let state = rng;
 
-  // Draw 64 ground-truth matchup scores.
-  const truth: Score[][] = [];
+  // Draw 64 bell-curve values for team A's view (the anchor).
+  const viewA: Score[][] = [];
   for (let i = 0; i < MATRIX_SIZE; i++) {
     const row: Score[] = [];
     for (let j = 0; j < MATRIX_SIZE; j++) {
@@ -29,29 +33,17 @@ export function generateMatrix(
       state = draw.state;
       row.push(draw.value);
     }
-    truth.push(row);
-  }
-
-  // Apply independent variance for team A's view (row-major, same order as truth).
-  const viewA: Score[][] = [];
-  for (let i = 0; i < MATRIX_SIZE; i++) {
-    const row: Score[] = [];
-    for (let j = 0; j < MATRIX_SIZE; j++) {
-      const draw = applyVariance(truth[i]![j]!, state);
-      state = draw.state;
-      row.push(draw.value);
-    }
     viewA.push(row);
   }
 
-  // Apply independent variance for team B's view (row-major over truth, then transpose).
-  // Iterating (i, j) over truth[i][j] means we fill viewBRaw[i][j] in the same order,
-  // then transpose so that viewB[j][i] = viewBRaw[i][j].
+  // Apply per-cell variance to viewA to produce team B's view of each matchup,
+  // collected row-major in (i, j) order to match viewA's iteration. Then
+  // transpose so viewB[j][i] = same matchup as viewA[i][j].
   const viewBRaw: Score[][] = [];
   for (let i = 0; i < MATRIX_SIZE; i++) {
     const row: Score[] = [];
     for (let j = 0; j < MATRIX_SIZE; j++) {
-      const draw = applyVariance(truth[i]![j]!, state);
+      const draw = applyVariance(viewA[i]![j]!, state);
       state = draw.state;
       row.push(draw.value);
     }
