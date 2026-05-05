@@ -1,0 +1,20 @@
+{
+  "name": "cawl",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "WTC King-of-the-Hill pairings simulator for Warhammer 40k team play",
+  "scripts": {
+    "test": "vitest run --passWithNoTests",
+    "test:engine": "vitest run src/engine --passWithNoTests",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage --passWithNoTests",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@vitest/coverage-v8": "^3.0.5",
+    "typescript": "^5.6.3",
+    "vitest": "^3.0.5"
+  }
+}
