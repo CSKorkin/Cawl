@@ -1,4 +1,4 @@
-import { generate, applyVariance } from './score.js';
+import { generate, applyVariance, invert } from './score.js';
 import type { Score, ScoreMode, GenerateParams } from './score.js';
 import type { RngState } from './rng.js';
 
@@ -8,10 +8,12 @@ export interface Matrix {
   // This is the anchor — drawn directly from the bell-curve generator.
   readonly viewA: readonly (readonly Score[])[];
   // viewB[bArmy][aArmy] = team B's expected score for the same matchup.
-  // Each cell is a single application of the score-mode's variance to the
-  // corresponding viewA cell, so |viewA[i][j] - viewB[j][i]| ≤ the mode's
-  // variance bound (±3 standard, ±1 ordinal step atlas). B reads its own
-  // armies down the rows, hence the transposed indexing.
+  // WTC scoring splits a fixed total per matchup, so B's expected share is
+  // the inverse of A's around the mode's midpoint, plus per-cell variance:
+  //   viewB[j][i] = applyVariance(invert(viewA[i][j]))
+  // Hence |viewA[i][j] − (MAX − viewB[j][i])| ≤ the mode's variance bound
+  // (±3 standard, ±1 ordinal step atlas). B reads its own armies down the
+  // rows, hence the transposed indexing.
   readonly viewB: readonly (readonly Score[])[];
 }
 
@@ -36,14 +38,15 @@ export function generateMatrix(
     viewA.push(row);
   }
 
-  // Apply per-cell variance to viewA to produce team B's view of each matchup,
-  // collected row-major in (i, j) order to match viewA's iteration. Then
-  // transpose so viewB[j][i] = same matchup as viewA[i][j].
+  // For each matchup, B's expected score starts as the INVERSE of A's around
+  // the mode's midpoint (split-scoring complement), then has per-cell variance
+  // applied on top. Collected row-major in (i, j) order to match viewA's
+  // iteration, then transposed so viewB[j][i] = same matchup as viewA[i][j].
   const viewBRaw: Score[][] = [];
   for (let i = 0; i < MATRIX_SIZE; i++) {
     const row: Score[] = [];
     for (let j = 0; j < MATRIX_SIZE; j++) {
-      const draw = applyVariance(viewA[i]![j]!, state);
+      const draw = applyVariance(invert(viewA[i]![j]!), state);
       state = draw.state;
       row.push(draw.value);
     }

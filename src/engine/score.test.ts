@@ -5,6 +5,7 @@ import {
   colorBand,
   compare,
   generate,
+  invert,
 } from './score.js';
 import type { AtlasTier, Score } from './score.js';
 import { seed } from './rng.js';
@@ -31,6 +32,54 @@ describe('score.compare', () => {
     const atlas: Score = { mode: 'atlas', value: 3 };
     expect(() => compare(std, atlas)).toThrow(TypeError);
     expect(() => compare(atlas, std)).toThrow(TypeError);
+  });
+});
+
+// ── invert ───────────────────────────────────────────────────────────────────
+//
+// Inverts a score around the midpoint of its mode. Models WTC's split scoring:
+// each cell is one team's expected share of a fixed 20-point total (or atlas
+// 6-tier total), so the OTHER team's expected share is the complement.
+
+describe('score.invert (standard)', () => {
+  it.each([
+    [0, 20],
+    [4, 16],
+    [10, 10],
+    [12, 8],
+    [18, 2],
+    [20, 0],
+  ] as const)('inverts %i → %i (sum to 20)', (input, expected) => {
+    expect(invert({ mode: 'standard', value: input })).toEqual({ mode: 'standard', value: expected });
+  });
+
+  it('is an involution — invert(invert(s)) === s', () => {
+    for (let v = 0; v <= 20; v++) {
+      const s: Score = { mode: 'standard', value: v };
+      expect(invert(invert(s))).toEqual(s);
+    }
+  });
+});
+
+describe('score.invert (atlas)', () => {
+  it.each([
+    [1,   5],
+    [2,   4],
+    [2.5, 3.5],
+    [3,   3],
+    [3.5, 2.5],
+    [4,   2],
+    [5,   1],
+  ] as const)('tier %f → tier %f (each pair sums to 6)', (input, expected) => {
+    expect(invert({ mode: 'atlas', value: input as AtlasTier }))
+      .toEqual({ mode: 'atlas', value: expected as AtlasTier });
+  });
+
+  it('is an involution — invert(invert(t)) === t for every atlas tier', () => {
+    for (const t of ATLAS_TIERS) {
+      const s: Score = { mode: 'atlas', value: t };
+      expect(invert(invert(s))).toEqual(s);
+    }
   });
 });
 

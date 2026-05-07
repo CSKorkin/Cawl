@@ -280,27 +280,11 @@
       [
         {
           "mode": "standard",
-          "value": 14
-        },
-        {
-          "mode": "standard",
           "value": 10
         },
         {
           "mode": "standard",
-          "value": 7
-        },
-        {
-          "mode": "standard",
-          "value": 11
-        },
-        {
-          "mode": "standard",
-          "value": 12
-        },
-        {
-          "mode": "standard",
-          "value": 12
+          "value": 6
         },
         {
           "mode": "standard",
@@ -309,88 +293,6 @@
         {
           "mode": "standard",
           "value": 15
-        }
-      ],
-      [
-        {
-          "mode": "standard",
-          "value": 14
-        },
-        {
-          "mode": "standard",
-          "value": 9
-        },
-        {
-          "mode": "standard",
-          "value": 10
-        },
-        {
-          "mode": "standard",
-          "value": 12
-        },
-        {
-          "mode": "standard",
-          "value": 11
-        },
-        {
-          "mode": "standard",
-          "value": 9
-        },
-        {
-          "mode": "standard",
-          "value": 18
-        },
-        {
-          "mode": "standard",
-          "value": 14
-        }
-      ],
-      [
-        {
-          "mode": "standard",
-          "value": 12
-        },
-        {
-          "mode": "standard",
-          "value": 7
-        },
-        {
-          "mode": "standard",
-          "value": 9
-        },
-        {
-          "mode": "standard",
-          "value": 7
-        },
-        {
-          "mode": "standard",
-          "value": 17
-        },
-        {
-          "mode": "standard",
-          "value": 3
-        },
-        {
-          "mode": "standard",
-          "value": 13
-        },
-        {
-          "mode": "standard",
-          "value": 11
-        }
-      ],
-      [
-        {
-          "mode": "standard",
-          "value": 12
-        },
-        {
-          "mode": "standard",
-          "value": 5
-        },
-        {
-          "mode": "standard",
-          "value": 9
         },
         {
           "mode": "standard",
@@ -398,7 +300,33 @@
         },
         {
           "mode": "standard",
+          "value": 8
+        },
+        {
+          "mode": "standard",
+          "value": 7
+        },
+        {
+          "mode": "standard",
+          "value": 9
+        }
+      ],
+      [
+        {
+          "mode": "standard",
+          "value": 8
+        },
+        {
+          "mode": "standard",
+          "value": 7
+        },
+        {
+          "mode": "standard",
           "value": 12
+        },
+        {
+          "mode": "standard",
+          "value": 14
         },
         {
           "mode": "standard",
@@ -406,14 +334,26 @@
         },
         {
           "mode": "standard",
-          "value": 6
+          "value": 7
         },
         {
           "mode": "standard",
-          "value": 8
+          "value": 0
+        },
+        {
+          "mode": "standard",
+          "value": 10
         }
       ],
       [
+        {
+          "mode": "standard",
+          "value": 14
+        },
+        {
+          "mode": "standard",
+          "value": 7
+        },
         {
           "mode": "standard",
           "value": 9
@@ -424,19 +364,41 @@
         },
         {
           "mode": "standard",
+          "value": 9
+        },
+        {
+          "mode": "standard",
+          "value": 19
+        },
+        {
+          "mode": "standard",
+          "value": 13
+        },
+        {
+          "mode": "standard",
+          "value": 5
+        }
+      ],
+      [
+        {
+          "mode": "standard",
+          "value": 6
+        },
+        {
+          "mode": "standard",
+          "value": 13
+        },
+        {
+          "mode": "standard",
           "value": 5
         },
         {
           "mode": "standard",
-          "value": 9
+          "value": 12
         },
         {
           "mode": "standard",
-          "value": 9
-        },
-        {
-          "mode": "standard",
-          "value": 17
+          "value": 14
         },
         {
           "mode": "standard",
@@ -444,101 +406,55 @@
         },
         {
           "mode": "standard",
-          "value": 6
-        }
-      ],
-      [
-        {
-          "mode": "standard",
-          "value": 2
-        },
-        {
-          "mode": "standard",
-          "value": 3
-        },
-        {
-          "mode": "standard",
-          "value": 13
-        },
-        {
-          "mode": "standard",
-          "value": 6
-        },
-        {
-          "mode": "standard",
           "value": 14
         },
         {
           "mode": "standard",
           "value": 10
-        },
-        {
-          "mode": "standard",
-          "value": 12
-        },
-        {
-          "mode": "standard",
-          "value": 12
         }
       ],
       [
         {
           "mode": "standard",
-          "value": 12
-        },
-        {
-          "mode": "standard",
-          "value": 8
-        },
-        {
-          "mode": "standard",
-          "value": 17
+          "value": 15
         },
         {
           "mode": "standard",
           "value": 5
         },
+        {
+          "mode": "standard",
+          "value": 9
+        },
+        {
+          "mode": "standard",
+          "value": 11
+        },
+        {
+          "mode": "standard",
+          "value": 11
+        },
+        {
+          "mode": "standard",
+          "value": 7
+        },
+        {
+          "mode": "standard",
+          "value": 5
+        },
+        {
+          "mode": "standard",
+          "value": 8
+        }
+      ],
+      [
         {
           "mode": "standard",
           "value": 14
         },
         {
           "mode": "standard",
-          "value": 11
-        },
-        {
-          "mode": "standard",
-          "value": 2
-        },
-        {
-          "mode": "standard",
-          "value": 4
-        }
-      ],
-      [
-        {
-          "mode": "standard",
-          "value": 8
-        },
-        {
-          "mode": "standard",
-          "value": 8
-        },
-        {
-          "mode": "standard",
-          "value": 11
-        },
-        {
-          "mode": "standard",
-          "value": 12
-        },
-        {
-          "mode": "standard",
-          "value": 2
-        },
-        {
-          "mode": "standard",
-          "value": 5
+          "value": 15
         },
         {
           "mode": "standard",
@@ -547,6 +463,90 @@
         {
           "mode": "standard",
           "value": 8
+        },
+        {
+          "mode": "standard",
+          "value": 12
+        },
+        {
+          "mode": "standard",
+          "value": 14
+        },
+        {
+          "mode": "standard",
+          "value": 4
+        },
+        {
+          "mode": "standard",
+          "value": 10
+        }
+      ],
+      [
+        {
+          "mode": "standard",
+          "value": 10
+        },
+        {
+          "mode": "standard",
+          "value": 10
+        },
+        {
+          "mode": "standard",
+          "value": 7
+        },
+        {
+          "mode": "standard",
+          "value": 11
+        },
+        {
+          "mode": "standard",
+          "value": 6
+        },
+        {
+          "mode": "standard",
+          "value": 5
+        },
+        {
+          "mode": "standard",
+          "value": 14
+        },
+        {
+          "mode": "standard",
+          "value": 10
+        }
+      ],
+      [
+        {
+          "mode": "standard",
+          "value": 6
+        },
+        {
+          "mode": "standard",
+          "value": 10
+        },
+        {
+          "mode": "standard",
+          "value": 15
+        },
+        {
+          "mode": "standard",
+          "value": 4
+        },
+        {
+          "mode": "standard",
+          "value": 20
+        },
+        {
+          "mode": "standard",
+          "value": 9
+        },
+        {
+          "mode": "standard",
+          "value": 11
+        },
+        {
+          "mode": "standard",
+          "value": 14
         }
       ]
     ]

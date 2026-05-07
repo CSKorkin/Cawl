@@ -6,14 +6,17 @@
  *   seed:     hex integer (default 0x4040)
  *   --atlas:  use the ordinal {1, 2, 2.5, 3, 3.5, 4, 5} score mode
  *
- * Each cell is Team A's expected score for that matchup. viewA is the
- * anchor; viewB is one application of variance per cell, so viewA[i][j]
- * and viewB[j][i] differ by at most ±3 (standard) or ±1 ordinal step
- * (atlas) — that bounded asymmetry is the whole game.
+ * Each cell is the row team's expected score for that matchup. WTC scoring
+ * splits a fixed total per matchup, so viewA and viewB are STRUCTURAL
+ * INVERSES of each other (high A-score implies low B-score), with per-cell
+ * variance applied on top. The diff marker shows how much each cell
+ * deviates from the exact inverse — that residual is the ±3 (standard) or
+ * ±1 ordinal step (atlas) noise that makes pairing a game of incomplete
+ * information over slightly different beliefs about a shared matchup.
  */
 
 import { generateMatrix, MATRIX_SIZE } from '../src/engine/matrix.js';
-import { colorBand } from '../src/engine/score.js';
+import { colorBand, invert } from '../src/engine/score.js';
 import { seed as mkSeed } from '../src/engine/rng.js';
 import type { Score, ScoreMode } from '../src/engine/score.js';
 
@@ -43,9 +46,14 @@ function paint(score: Score): string {
 
 // ── Diff marker ───────────────────────────────────────────────────────────────
 
-function diffMarker(a: Score, b: Score): string {
-  if (a.value === b.value) return ' ';
-  const delta = (a.value as number) - (b.value as number);
+// Compares the row-team's view to the EXACT INVERSE of the col-team's view.
+// Under the split-scoring model, perfect agreement means b = invert(a). The
+// residual `delta = (row - invert(col))` is the variance term, bounded by ±3
+// (standard) or ±1 ordinal step (atlas).
+function diffMarker(rowView: Score, colView: Score): string {
+  const inv = invert(colView);
+  const delta = (rowView.value as number) - (inv.value as number);
+  if (delta === 0) return ' ';
   return delta > 0 ? `${BOLD}\x1b[36m+${RESET}` : `${BOLD}\x1b[35m-${RESET}`;
 }
 
@@ -65,8 +73,10 @@ function printLegend(mode: ScoreMode): void {
       + `${BAND_COLOR['lightGreen']}4${RESET} light green  `
       + `${BAND_COLOR['darkGreen']}5${RESET} dark green`);
   }
-  console.log(`  Diff markers: ${BOLD}\x1b[36m+${RESET} = A sees higher  `
-    + `${BOLD}\x1b[35m-${RESET} = A sees lower  (space) = identical`);
+  console.log(`  Diff markers (vs exact inverse of opponent's view): `
+    + `${BOLD}\x1b[36m+${RESET} = row team more optimistic than split implies  `
+    + `${BOLD}\x1b[35m-${RESET} = row team more pessimistic  `
+    + `(space) = exact inverse`);
 }
 
 // ── Grid printer ──────────────────────────────────────────────────────────────
@@ -118,22 +128,29 @@ function printSummary(
   viewB: readonly (readonly Score[])[],
   mode: ScoreMode,
 ): void {
-  let diffs = 0;
-  let totalDelta = 0;
+  // Variance term per cell: how much B's view deviates from the exact inverse
+  // of A's. Zero means perfect agreement on the split; up to the mode's bound
+  // means each team's belief independently drifts from the structural midpoint.
+  let nonZero = 0;
+  let totalAbsDelta = 0;
+  let maxAbsDelta = 0;
   for (let i = 0; i < MATRIX_SIZE; i++) {
     for (let j = 0; j < MATRIX_SIZE; j++) {
       const a = viewA[i]![j]!;
       const b = viewB[j]![i]!;
-      if (a.value !== b.value) {
-        diffs++;
-        totalDelta += Math.abs((a.value as number) - (b.value as number));
-      }
+      const inv = invert(a);
+      const delta = Math.abs((b.value as number) - (inv.value as number));
+      if (delta > 0) nonZero++;
+      totalAbsDelta += delta;
+      if (delta > maxAbsDelta) maxAbsDelta = delta;
     }
   }
-  const pct = ((diffs / (MATRIX_SIZE * MATRIX_SIZE)) * 100).toFixed(0);
-  const avg = diffs > 0 ? (totalDelta / diffs).toFixed(2) : '0.00';
+  const pct = ((nonZero / (MATRIX_SIZE * MATRIX_SIZE)) * 100).toFixed(0);
+  const avg = (totalAbsDelta / (MATRIX_SIZE * MATRIX_SIZE)).toFixed(2);
   const unit = mode === 'standard' ? 'points' : 'tier-numeric';
-  console.log(`\n  ${BOLD}Asymmetry:${RESET} ${diffs}/64 cells differ (${pct}%), average delta ${avg} ${unit}`);
+  console.log(`\n  ${BOLD}Variance from split:${RESET} ${nonZero}/64 cells off the exact inverse (${pct}%), `
+    + `mean |Δ| ${avg} ${unit}, max |Δ| ${maxAbsDelta}`);
+  console.log(`  ${DIM}Each team's view ≈ inverse of the other's, plus per-cell noise. The noise is the asymmetry.${RESET}`);
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────

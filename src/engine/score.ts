@@ -67,6 +67,21 @@ export function colorBand(s: Score): ColorBand {
   }
 }
 
+// Inverts a score around its mode's midpoint. WTC scoring splits a fixed
+// total (20 in standard, 6 in atlas — the latter being the symmetry point of
+// the tier set, not a literal point cap), so each team's expected share of a
+// matchup is the complement of the other team's. Used by matrix generation
+// to derive viewB from viewA: each opposing-team view starts as the inverse
+// of the same matchup, then has per-cell variance applied on top.
+export function invert(s: Score): Score {
+  if (s.mode === 'standard') {
+    return { mode: 'standard', value: STANDARD_MAX - s.value };
+  }
+  // For atlas, 6 - t maps {1,2,2.5,3,3.5,4,5} onto itself: 1↔5, 2↔4,
+  // 2.5↔3.5, 3↔3. The cast is safe by enumeration.
+  return { mode: 'atlas', value: (6 - s.value) as AtlasTier };
+}
+
 export function applyVariance(s: Score, rng: RngState): RngDraw<Score> {
   if (s.mode === 'standard') {
     const r = nextInt(rng, -STANDARD_VARIANCE, STANDARD_VARIANCE);

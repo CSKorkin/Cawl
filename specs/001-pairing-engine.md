@@ -230,6 +230,13 @@ The `score` module exposes:
 
 - `compare(a, b): -1 | 0 | 1`
 - `colorBand(s): 'red' | 'orange' | 'yellow' | 'lightGreen' | 'darkGreen'`
+- `invert(s): Score` — symmetric complement around the mode's midpoint.
+  WTC scoring splits a fixed total per matchup, so each team's
+  expected share is the inverse of the other's.
+  - **Standard:** `20 − v`. Range stays in `[0, 20]` since input is.
+  - **Atlas:** `6 − t` on the tier set, mapping each tier to its
+    symmetric partner: `1 ↔ 5`, `2 ↔ 4`, `2.5 ↔ 3.5`, `3 ↔ 3`.
+  - `invert(invert(s)) === s` — it's an involution.
 - `applyVariance(s, rng): Score` — mode-aware.
   - **Standard:** uniform integer in `[-3, +3]`, added and clamped to
     `[0, 20]`.
@@ -262,13 +269,26 @@ type Matrix = {
 `generateMatrix(rng, mode, params)` produces both views: it draws
 `viewA` directly from the bell curve (the anchor — `CLAUDE.md` defines
 each cell as "an expected score for Team A's army vs Team B's army,
-from Team A's perspective"), then applies one application of the
-score-mode's variance function to each cell to produce `viewB`. As a
-result, `|viewA[i][j] - viewB[j][i]|` is bounded by the mode's variance
-distance (±3 in standard mode, ±1 ordinal step in atlas mode) — the
-spec disagreement noted in `CLAUDE.md` is resolved in `CLAUDE.md`'s
-favor. Both views are persisted in state; each team's UI only ever
-reads its own.
+from Team A's perspective"), then for each matchup derives the
+corresponding viewB cell by *first inverting* (since WTC scoring is
+split — each team's expected share is the complement of the other's)
+and *then applying* one application of the score-mode's variance
+function:
+
+```
+viewB[j][i] = applyVariance(invert(viewA[i][j]))
+```
+
+So if A sees a strong matchup at 18, B sees it as a weak matchup at
+`invert(18) ± 3 = 2 ± 3 → [0, 5]` (clamped). The bound is on the
+distance from the *exact inverse*: `|viewA[i][j] − (20 − viewB[j][i])|
+≤ 3` in standard mode, and idx-distance ≤ 1 on the tier set in atlas
+mode. Both views are persisted in state; each team's UI only ever reads
+its own.
+
+This inversion-then-variance shape is what makes the same matchup look
+"good" to one side and "bad" to the other while still leaving room for
+genuine disagreement (the variance term) about how much.
 
 ## AI opponent
 

@@ -16,7 +16,7 @@ Use these terms exactly. Don't paraphrase to "selected army" or "rejected pick" 
 - **Attackers** — the two armies the opposing team proposes against a defender.
 - **Refusal** — choosing one of the two proposed attackers to send back to the pool.
 - **Table choice token** — alternates between teams between steps; grants right to pick table first that step.
-- **Pairing matrix** — 8×8 grid. Each cell is an expected score for Team A's army vs Team B's army, from Team A's perspective. Team B sees the same matchups from their perspective with per-cell variance applied (i.e., the two views are asymmetric — that asymmetry is the whole game). Two scoring modes are supported; see _Matrix and visual specifics_ below.
+- **Pairing matrix** — 8×8 grid. Each cell in Team A's view is *A's* expected score for that matchup, from A's perspective. Team B's view of the same matchup is structurally inverted (WTC scoring splits a fixed total per matchup, so A's expected share and B's expected share sum to the mode's total) and then has per-cell variance applied on top. The two views are therefore close to mirror-images, slightly perturbed — that bounded asymmetry on top of the inversion is the whole game. Two scoring modes are supported; see _Matrix and visual specifics_ below.
 - **Round 1 / Round 2 / Scrum** — the three pairing rounds. The Scrum auto-resolves the final two games (refused-vs-refused and last-man-vs-last-man). See `spec.md` for exact mechanics.
 - **Atlas mode** — the alternate ordinal scoring scale {1, 2, 2.5, 3, 3.5, 4, 5}, opt-in. Default is the integer 0–20 scale.
 
@@ -61,12 +61,14 @@ This section covers both engine concerns (score generation, variance) and render
 - Scores are integers in [0, 20].
 - Color bands: 0–4 red, 5–8 orange, 9–11 yellow, 12–15 light green, 16–20 dark green.
 - Base matrix values are drawn from a bell curve centered around 10, integer-rounded, clamped to [0, 20]. The curve shape (mean, stdev) determines the difficulty distribution — make these tunable from the start.
-- Variance between team views: per-cell noise of −3 to +3, clamped to [0, 20].
+- **Inversion (split scoring)**: Team B's view of a matchup starts as `20 − A's view of the same matchup` (so an 18 for A maps to a 2 for B), reflecting that the matchup has a fixed total split between the two teams.
+- **Variance on top of inversion**: per-cell noise of −3 to +3 applied to the inverted value, clamped to [0, 20]. So if A sees 18, B sees a value in [0, 5] (= invert(18) ± 3, clamped). The bound is `|viewA[i][j] − (20 − viewB[j][i])| ≤ 3`.
 
 **Atlas mode (opt-in):**
 - Scores from the ordinal set {1, 2, 2.5, 3, 3.5, 4, 5}.
 - Color bands map proportionally to the same five tiers (1 = red ... 5 = dark green).
-- Variance between team views: strictly ±1 step on the ordinal scale (e.g., a true 3 may show as 2.5, 3, or 3.5 to the opponent — never 2 or 3.5+).
+- **Inversion**: Team B's view of a matchup starts as the symmetric partner of A's view on the tier set: 1↔5, 2↔4, 2.5↔3.5, 3↔3 (i.e., `6 − tier`).
+- **Variance on top of inversion**: ±1 step on the ordinal scale, clamped at the ends. So if A sees tier 5, B sees tier 1 or 2 (= invert(5) ± 1 step, clamped); if A sees tier 3, B sees one of {2.5, 3, 3.5}.
 - Atlas mode bell-curve generation should center near 3 with similar tunable shape.
 
 **Engine implication:** abstract over both modes. The engine should treat "score" as a typed value with a mode-aware comparator, color-bander, and variance function — not hardcode 0–20 anywhere outside the default-mode module.

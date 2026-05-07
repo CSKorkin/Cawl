@@ -119,23 +119,26 @@ export function easyActor(seat: Team): Actor {
       return best!;
     },
 
-    // pickAttackers: the two pool armies (excluding own defender) with the
-    // lowest expected score against oppDefender. Sorted ascending then lex.
+    // pickAttackers: send the two pool armies (excluding own defender) with
+    // the HIGHEST expected score against oppDefender. The naive intuition —
+    // "send my best to attack their defender" — sounds right to a human and
+    // is what an unsophisticated player would do, even though more careful
+    // analysis (see mediumActor below) shows it's still a depth-2 closed
+    // form. Sorted descending by score, lex tiebreak.
     pickAttackers(view, oppDefender) {
       const ownDef = ownDefenderFromView(view);
       const candidates = view.myPool.filter(a => a !== ownDef);
       const scored = candidates.map(a => ({ armyId: a, score: cell(view, a, oppDefender) }));
-      scored.sort((x, y) => x.score - y.score || lex(x.armyId, y.armyId));
+      scored.sort((x, y) => y.score - x.score || lex(x.armyId, y.armyId));
       return [scored[0]!.armyId, scored[1]!.armyId];
     },
 
     // pickRefusal: refuse the attacker associated with our LOWEST expected
-    // score against our defender. The spec wording "refuse the attacker with
-    // the higher expected score" reads as the OPPONENT's score — our matrix
-    // is from our POV, so the opponent's higher score is our lower value.
-    // The explanatory text "keep the easier matchup" is the source of truth:
-    // we want to keep the matchup we're rated to score well in, so we refuse
-    // the matchup we're rated to score poorly in.
+    // score against our defender. WTC matchups split a fixed total, so the
+    // opponent's expected score for the same matchup is roughly invert(ours).
+    // "The attacker with the higher expected score against our defender" thus
+    // means the OPPONENT's higher score = our lower value, which is the
+    // matchup we don't want — refuse it, keep the easier one.
     pickRefusal(view, attackers) {
       const ownDef = ownDefenderFromView(view);
       const scored = attackers.map(a => ({ armyId: a, score: cell(view, ownDef, a) }));
@@ -151,6 +154,158 @@ export function easyActor(seat: Team): Actor {
       for (const t of available) if (t < min) min = t;
       return min;
     },
+  };
+}
+
+// ── Medium actor (depth-2 minimax against Easy under inversion) ──────────────
+//
+// Spec: "depth-2 minimax with K=4 pruning, opponent matrix approximated as
+// own." Under the inversion model (each cell of viewB ≈ invert(viewA[i][j])),
+// the approximation tightens to "opponent matrix = invert(my matrix)" since
+// each team's view of a matchup is the structural complement of the other's.
+//
+// Both Easy and Medium send top-2 attackers (Easy from naive "send my best"
+// intuition; Medium because depth-2 minimax against Easy yields the same
+// closed form). So the symmetric model is "both teams send top-2 attackers."
+// Under that model, the per-round outcome decomposes:
+//
+//   defender pairing for my X = ROW SECOND-MIN of myView[X][.] over oppPool
+//     Reason: opp's Easy sends top-2 by oppView[.][X] = my bottom-2 in row X
+//     under inversion. I refuse my row-min; surviving = my row second-min.
+//
+//   attacker pairing vs opp's D = COL SECOND-MAX of myView[.][D] over (myPool
+//     \ {X}). Reason: I send top-2 by col D from eligible attackers. Opp's
+//     Easy refuses my col-max (their lowest oppView). Surviving = col
+//     second-max. Crucially, this depends on X via eligibility — if X is in
+//     the top-2 of col D, removing it as defender drops col-second-max by
+//     ~5+ points. Easy doesn't account for this.
+//
+// Medium picks X to maximize the SUM (defender pairing + attacker pairing)
+// given the predicted opp defender D. Easy picks X by row mean — a noisy
+// proxy that's correlated but not aligned with the depth-2 round score.
+//
+// Refusal and table picks are depth-2 optimal under Easy already; Medium
+// delegates rather than duplicating logic. If Easy's behavior changes, the
+// derivation needs revisiting (we noted this exact situation when the user
+// updated Easy's pickAttackers from bottom-2 to top-2 — old Medium's row-max
+// defender heuristic became miscalibrated overnight).
+//
+// We approximate the predicted opp defender as the static "argmin col-mean
+// over my full pool" (the same calculation opp performs at this phase since
+// opp can't see X yet). True depth-2 would re-predict for each X candidate
+// based on a counterfactual "what if I had locked X" — but at AWAITING_
+// DEFENDERS the locks are simultaneous, so opp uses the same full-pool view
+// and the static prediction is exact.
+
+// Row second-min of myView[X][.] over a given opp pool — the surviving
+// opposing attacker's score against my defender X under the symmetric top-2
+// attacker model.
+function rowSecondMinOver(
+  view: TeamView,
+  X: ArmyId,
+  oppPool: readonly ArmyId[],
+): number {
+  const i = view.myRoster.indexOf(X);
+  let min1 = Infinity;
+  let min2 = Infinity;
+  for (const o of oppPool) {
+    const j = view.oppRoster.indexOf(o);
+    const v = view.myView[i]![j]!.value as number;
+    if (v < min1) { min2 = min1; min1 = v; }
+    else if (v < min2) { min2 = v; }
+  }
+  return min2;
+}
+
+// Col second-max of myView[.][D] over a given my-pool — the surviving MY
+// attacker's score against opp's defender D under top-2 attackers.
+function colSecondMaxOver(
+  view: TeamView,
+  D: ArmyId,
+  myPool: readonly ArmyId[],
+): number {
+  const j = view.oppRoster.indexOf(D);
+  let max1 = -Infinity;
+  let max2 = -Infinity;
+  for (const a of myPool) {
+    const i = view.myRoster.indexOf(a);
+    const v = view.myView[i]![j]!.value as number;
+    if (v > max1) { max2 = max1; max1 = v; }
+    else if (v > max2) { max2 = v; }
+  }
+  return max2;
+}
+
+// Predict opp's defender pick. Opp's Easy = argmax row mean of oppView. Under
+// inversion, opp's row mean(D) = 20 − col-mean(D) from my POV, so opp picks D
+// to MINIMIZE my column mean. Note: at AWAITING_DEFENDERS, both teams pick
+// simultaneously and opp doesn't know my X, so this calculation uses my full
+// remaining pool — the same view opp has when they decide.
+function predictOppDefender(view: TeamView): ArmyId {
+  let best: ArmyId | null = null;
+  let bestMean = Infinity;
+  for (const o of view.oppPool) {
+    const j = view.oppRoster.indexOf(o);
+    let sum = 0;
+    for (const a of view.myPool) {
+      const i = view.myRoster.indexOf(a);
+      sum += view.myView[i]![j]!.value as number;
+    }
+    const mean = sum / view.myPool.length;
+    if (
+      mean < bestMean
+      || (mean === bestMean && best !== null && lex(o, best) < 0)
+    ) {
+      best = o;
+      bestMean = mean;
+    }
+  }
+  return best!;
+}
+
+export function mediumActor(seat: Team): Actor {
+  void seat;
+  const easy = easyActor(seat);
+  return {
+    // Round-sum depth-2 minimax: pick X to maximize the SUM of my two pairing
+    // scores in this round given opp's predicted defender D.
+    //
+    //   defender pairing  = row-second-min of myView[X][.]   over oppPool \ {D}
+    //   attacker pairing  = col-second-max of myView[.][D]   over myPool   \ {X}
+    //
+    // The defender term excludes D because D leaves opp's attacker-eligible
+    // pool. The attacker term penalizes picking X = top-1 or top-2 of col D
+    // (removing a strong attacker from the eligible pool drops the surviving
+    // attacker's score by 5+ points). Easy ignores both effects.
+    pickDefender(view) {
+      const D = predictOppDefender(view);
+      const oppEligible = view.oppPool.filter(o => o !== D);
+      let best: ArmyId | null = null;
+      let bestScore = -Infinity;
+      for (const X of view.myPool) {
+        const defPairing = rowSecondMinOver(view, X, oppEligible);
+        const remaining = view.myPool.filter(a => a !== X);
+        const atkPairing = colSecondMaxOver(view, D, remaining);
+        const total = defPairing + atkPairing;
+        if (
+          total > bestScore
+          || (total === bestScore && best !== null && lex(X, best) < 0)
+        ) {
+          best = X;
+          bestScore = total;
+        }
+      }
+      return best!;
+    },
+
+    // Under the symmetric top-2 attacker model, depth-2 minimax for these
+    // three phases yields the same closed form Easy uses. Delegate to keep
+    // the implementations in sync — if Easy's heuristic ever changes, Medium
+    // tracks automatically (and we'll need to re-derive whether that's still
+    // depth-2 optimal under the new model).
+    pickAttackers(view, oppDefender) { return easy.pickAttackers(view, oppDefender); },
+    pickRefusal(view, attackers) { return easy.pickRefusal(view, attackers); },
+    pickTable(view, available) { return easy.pickTable(view, available); },
   };
 }
 

@@ -74,14 +74,17 @@ describe('matrix.generateMatrix — cell validity', () => {
   });
 });
 
-describe('matrix.generateMatrix — asymmetry property', () => {
-  // Per CLAUDE.md: "Team B sees the same matchups from their perspective with
-  // per-cell variance applied" — viewA is the anchor; viewB[j][i] is viewA[i][j]
-  // with one application of variance. So |viewA[i][j] - viewB[j][i]| ≤ 3 for
-  // standard mode and ≤ 1 ordinal step for atlas mode.
+describe('matrix.generateMatrix — asymmetry property (inversion model)', () => {
+  // WTC scoring is split out of a fixed total, so each team's view of a
+  // matchup is the COMPLEMENT of the other's: viewB[j][i] is generated as
+  // applyVariance(invert(viewA[i][j])). The bound is therefore on the
+  // distance from the inverse, not from viewA itself:
+  //   standard: |viewA[i][j] − (20 − viewB[j][i])| ≤ 3
+  //   atlas:    |idx(viewA[i][j]) + idx(viewB[j][i]) − 6| ≤ 1
+  //             (since invert maps idx k → 6 − k on the 7-tier set)
 
-  it('viewA[i][j] and viewB[j][i] differ by ≤3 in standard mode (200 seeds)', () => {
-    let totalDiffs = 0;
+  it('|viewA[i][j] − (20 − viewB[j][i])| ≤ 3 in standard mode (200 seeds)', () => {
+    let totalDiffsFromExactInverse = 0;
     for (let s = 0; s < 200; s++) {
       const { matrix } = generateMatrix(seed(s), 'standard');
       for (let i = 0; i < MATRIX_SIZE; i++) {
@@ -91,29 +94,51 @@ describe('matrix.generateMatrix — asymmetry property', () => {
           expect(a.mode).toBe('standard');
           expect(b.mode).toBe('standard');
           if (a.mode === 'standard' && b.mode === 'standard') {
-            expect(Math.abs(a.value - b.value)).toBeLessThanOrEqual(3);
-            if (a.value !== b.value) totalDiffs++;
+            const inverseOfA = 20 - a.value;
+            const delta = Math.abs(inverseOfA - b.value);
+            expect(delta).toBeLessThanOrEqual(3);
+            if (delta > 0) totalDiffsFromExactInverse++;
           }
         }
       }
     }
-    // Overwhelming probability that at least one cell differs across 200 seeds.
-    expect(totalDiffs).toBeGreaterThan(0);
+    // Variance should perturb most cells off the exact inverse — confirm
+    // the asymmetry is real (otherwise we'd be applying invert with no noise).
+    expect(totalDiffsFromExactInverse).toBeGreaterThan(0);
   });
 
-  it('regression: seed 0x102 cell viewA[0][1] vs viewB[1][0] differ by ≤3', () => {
-    // User-reported bug: with the original "independent variance from a hidden
-    // truth" model, this seed produced viewA[0][1] = 13, viewB[1][0] = 8 (Δ=5),
-    // violating the ±3 bound that CLAUDE.md prescribes.
+  it('regression: seed 0x102 cell viewA[0][1] inverts to within ±3 of viewB[1][0]', () => {
+    // History: under an earlier "two independent variance draws from a hidden
+    // truth" model this seed produced |viewA[0][1] − viewB[1][0]| = 5, breaking
+    // the ±3 bound. The fix anchored viewA, applied one variance step to derive
+    // viewB. Then a second bug surfaced: WTC scoring is split, so viewB should
+    // start from invert(viewA), not from viewA itself. This regression locks in
+    // the inversion model — the bound is between viewB and INVERT(viewA).
     const { matrix } = generateMatrix(seed(0x102), 'standard');
     const a = matrix.viewA[0]![1]!;
     const b = matrix.viewB[1]![0]!;
     if (a.mode === 'standard' && b.mode === 'standard') {
-      expect(Math.abs(a.value - b.value)).toBeLessThanOrEqual(3);
+      expect(Math.abs((20 - a.value) - b.value)).toBeLessThanOrEqual(3);
     }
   });
 
-  it('atlas views are within ±1 ordinal step of each other (100 seeds)', () => {
+  it('high A-score implies low B-score (split-scoring sanity)', () => {
+    // Pin a specific cell to the high end and confirm B sees the inverse.
+    // Mean 20 stdev 0 → every viewA cell is 20 → invert is 0 → viewB is in [0, 3].
+    const { matrix } = generateMatrix(seed(42), 'standard', { mean: 20, stdev: 0 });
+    for (const row of matrix.viewA) {
+      for (const s of row) {
+        if (s.mode === 'standard') expect(s.value).toBe(20);
+      }
+    }
+    for (const row of matrix.viewB) {
+      for (const s of row) {
+        if (s.mode === 'standard') expect(s.value).toBeLessThanOrEqual(3);
+      }
+    }
+  });
+
+  it('atlas idx(viewA) + idx(viewB) sums to 6 ± 1 across 100 seeds', () => {
     for (let s = 0; s < 100; s++) {
       const { matrix } = generateMatrix(seed(s), 'atlas');
       for (let i = 0; i < MATRIX_SIZE; i++) {
@@ -123,7 +148,7 @@ describe('matrix.generateMatrix — asymmetry property', () => {
           if (a.mode === 'atlas' && b.mode === 'atlas') {
             const idxA = ATLAS_TIERS.indexOf(a.value);
             const idxB = ATLAS_TIERS.indexOf(b.value);
-            expect(Math.abs(idxA - idxB)).toBeLessThanOrEqual(1);
+            expect(Math.abs(idxA + idxB - 6)).toBeLessThanOrEqual(1);
           }
         }
       }
