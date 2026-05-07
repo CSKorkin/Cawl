@@ -12,7 +12,7 @@ export type LogEntry =
   | { readonly type: 'RefusalsRevealed'; readonly round: Round; readonly aRefused: ArmyId; readonly bRefused: ArmyId }
   | { readonly type: 'TokenRollOff'; readonly winner: Team }
   | { readonly type: 'TokenFlipped'; readonly newHolder: Team; readonly reason: string }
-  | { readonly type: 'TableChosen'; readonly round: Round; readonly team: Team; readonly tableId: TableId; readonly defenderArmy: ArmyId }
+  | { readonly type: 'TableChosen'; readonly round: Round; readonly team: Team; readonly tableId: TableId; readonly defenderArmy?: ArmyId }
   | { readonly type: 'LastManAutoPaired'; readonly aArmy: ArmyId; readonly bArmy: ArmyId }
   | { readonly type: 'RefusedAutoPaired'; readonly aArmy: ArmyId; readonly bArmy: ArmyId };
 

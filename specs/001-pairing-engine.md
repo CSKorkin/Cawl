@@ -259,10 +259,16 @@ type Matrix = {
 };
 ```
 
-`generateMatrix(rng, mode, params)` produces both views: it draws a
-"true" matchup from the bell curve, then applies independent variance
-to each team's view of that matchup. Both views are persisted in state;
-each team's UI only ever reads its own.
+`generateMatrix(rng, mode, params)` produces both views: it draws
+`viewA` directly from the bell curve (the anchor — `CLAUDE.md` defines
+each cell as "an expected score for Team A's army vs Team B's army,
+from Team A's perspective"), then applies one application of the
+score-mode's variance function to each cell to produce `viewB`. As a
+result, `|viewA[i][j] - viewB[j][i]|` is bounded by the mode's variance
+distance (±3 in standard mode, ±1 ordinal step in atlas mode) — the
+spec disagreement noted in `CLAUDE.md` is resolved in `CLAUDE.md`'s
+favor. Both views are persisted in state; each team's UI only ever
+reads its own.
 
 ## AI opponent
 

@@ -105,7 +105,10 @@ export function generate(
       : rounded > STANDARD_MAX
         ? STANDARD_MAX
         : rounded;
-    return { state: z.state, value: { mode: 'standard', value: clamped } };
+    // Math.round can produce -0 for raw in (-0.5, 0]; normalize so JSON
+    // round-trip stays stable (JSON.stringify(-0) === "0").
+    const value = clamped === 0 ? 0 : clamped;
+    return { state: z.state, value: { mode: 'standard', value } };
   }
   const mean = params?.mean ?? 3;
   const stdev = params?.stdev ?? 0.8;
