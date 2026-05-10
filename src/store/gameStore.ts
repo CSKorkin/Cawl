@@ -186,14 +186,28 @@ export interface GameStore {
   readonly state: PairingState | null;
   readonly config: GameConfig | null;
   readonly humanSeat: Team | null;
+  // Hot-seat only: the team that needs to take the device before the next
+  // pick is shown. When non-null the UI must render the Interstitial in
+  // place of PlayScreen — this is the *flow*-layer information-hiding gate
+  // (the engine's own viewFor strips opp pendings, but a leak still exists
+  // if we render the next mover's view while the prior mover is still
+  // looking at the screen). Always null in SP mode.
+  readonly pendingHandoff: Team | null;
   // AI actor instances are not serialized; recreated whenever the store is
   // initialized from a config.
   readonly _aiActorA: Actor | null;
   readonly _aiActorB: Actor | null;
 
   startGame(config: GameConfig): void;
+  // Clears engine state but keeps the last-used config in memory so the
+  // Setup screen can seed itself from it. localStorage is cleared so a
+  // page reload starts fresh.
+  playAgain(): void;
   resetGame(): void;
   dispatch(action: Action): DispatchResult;
+  // Hot-seat: dismiss the pending handoff. The next mover is now holding
+  // the device and PlayScreen can safely render their view.
+  dismissHandoff(): void;
 }
 
 // ── store implementation ─────────────────────────────────────────────────────
@@ -205,12 +219,14 @@ export const useGameStore = create<GameStore>((set, get) => {
   let initialState: PairingState | null = null;
   let initialConfig: GameConfig | null = null;
   let initialHumanSeat: Team | null = null;
+  let initialPendingHandoff: Team | null = null;
   let initialActorA: Actor | null = null;
   let initialActorB: Actor | null = null;
   if (persisted !== null) {
     initialState = persisted.state;
     initialConfig = persisted.config;
     initialHumanSeat = persisted.humanSeat;
+    initialPendingHandoff = persisted.pendingHandoff;
     initialActorA = humanSeatFor(persisted.config) === 'A' ? null : actorFor(persisted.config, 'A');
     initialActorB = humanSeatFor(persisted.config) === 'B' ? null : actorFor(persisted.config, 'B');
   }
@@ -219,6 +235,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     state: initialState,
     config: initialConfig,
     humanSeat: initialHumanSeat,
+    pendingHandoff: initialPendingHandoff,
     _aiActorA: initialActorA,
     _aiActorB: initialActorB,
 
@@ -237,19 +254,33 @@ export const useGameStore = create<GameStore>((set, get) => {
       const actorA = humanSeat === 'A' ? null : actorFor(config, 'A');
       const actorB = humanSeat === 'B' ? null : actorFor(config, 'B');
       const advanced = autoAdvance(baseState, humanSeat, actorA, actorB);
+      // No interstitial at game start — the first mover is already at the
+      // device (they just clicked Start).
+      const pendingHandoff: Team | null = null;
       set({
         state: advanced,
         config,
         humanSeat,
+        pendingHandoff,
         _aiActorA: actorA,
         _aiActorB: actorB,
       });
-      saveGame({ state: advanced, config, humanSeat });
+      saveGame({ state: advanced, config, humanSeat, pendingHandoff });
+    },
+
+    playAgain() {
+      // Drop persisted state so reload doesn't drag the finished game back
+      // in, but keep `config` in memory so Setup re-seeds from it.
+      clearGame();
+      set({ state: null, humanSeat: null, pendingHandoff: null, _aiActorA: null, _aiActorB: null });
     },
 
     resetGame() {
       clearGame();
-      set({ state: null, config: null, humanSeat: null, _aiActorA: null, _aiActorB: null });
+      set({
+        state: null, config: null, humanSeat: null, pendingHandoff: null,
+        _aiActorA: null, _aiActorB: null,
+      });
     },
 
     dispatch(action) {
@@ -264,12 +295,45 @@ export const useGameStore = create<GameStore>((set, get) => {
       // null), autoAdvance only handles system actions and returns the rest
       // for the other human to dispatch.
       const advanced = autoAdvance(r.state, humanSeat, _aiActorA, _aiActorB);
-      set({ state: advanced });
-      saveGame({ state: advanced, config, humanSeat });
+      // Hot-seat handoff: if the next mover is a different human team than
+      // the one that just acted, gate the next pick behind an interstitial
+      // so the prior mover can pass the device. Skip for table phases —
+      // table picks are public per spec.
+      const pendingHandoff = computeHandoff(humanSeat, advanced, action);
+      set({ state: advanced, pendingHandoff });
+      saveGame({ state: advanced, config, humanSeat, pendingHandoff });
       return { ok: true };
+    },
+
+    dismissHandoff() {
+      const { config, state, humanSeat, pendingHandoff } = get();
+      if (pendingHandoff === null) return;
+      set({ pendingHandoff: null });
+      if (state !== null && config !== null) {
+        saveGame({ state, config, humanSeat, pendingHandoff: null });
+      }
     },
   };
 });
+
+// Hot-seat handoff rule: after the team-just-acted, if the next mover is a
+// human on the opposing team and we're not in a table phase, gate the
+// transition behind the Interstitial. Returns the team that needs to take
+// the device, or null if no gate is required.
+function computeHandoff(
+  humanSeat: Team | null,
+  advanced: PairingState,
+  action: Action,
+): Team | null {
+  if (humanSeat !== null) return null; // SP: no handoff
+  if (advanced.phase === 'GAME_COMPLETE') return null;
+  if (advanced.phase.endsWith('AWAITING_TABLES')) return null;
+  const next = nextRequiredMover(advanced);
+  if (next !== 'A' && next !== 'B') return null;
+  if (!('team' in action)) return null;
+  if (next === action.team) return null;
+  return next;
+}
 
 // ── selectors ────────────────────────────────────────────────────────────────
 

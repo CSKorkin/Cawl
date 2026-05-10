@@ -33,6 +33,7 @@ beforeEach(() => {
     state: null,
     config: null,
     humanSeat: null,
+    pendingHandoff: null,
     _aiActorA: null,
     _aiActorB: null,
   });
@@ -187,7 +188,7 @@ describe('PlayScreen — full single-player vs Easy game smoke test', () => {
     expect(final.pairings).toHaveLength(8);
     expect(new Set(final.pairings.map(p => p.tableId)).size).toBe(8);
 
-    // GameOverPlaceholder is now rendered.
-    expect(screen.getByTestId('game-over-placeholder')).toBeInTheDocument();
+    // GameOverScreen is now rendered.
+    expect(screen.getByTestId('game-over')).toBeInTheDocument();
   });
 });

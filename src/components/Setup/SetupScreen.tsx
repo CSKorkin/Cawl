@@ -10,6 +10,10 @@ import { FACTIONS } from '../../factions.js';
 
 interface SetupScreenProps {
   readonly onStart: (config: GameConfig) => void;
+  // Optional: when "Play again" routes back to Setup, the previous game's
+  // config seeds the form so the user can re-roll or re-Start without
+  // re-picking everything. Same seed retained by default.
+  readonly initialConfig?: GameConfig | null;
 }
 
 const ROSTER_SIZE = 8;
@@ -40,17 +44,25 @@ function rosterReady(roster: ReadonlyArray<FactionId | null>): boolean {
   return roster.length === ROSTER_SIZE && roster.every((v) => v !== null);
 }
 
-export function SetupScreen({ onStart }: SetupScreenProps) {
-  const [mode, setMode] = useState<GameMode>({ kind: 'sp', tier: 'easy' });
-  const [scoring, setScoring] = useState<ScoreMode>('standard');
-  const [matrixSource, setMatrixSource] = useState<MatrixSource>('generated');
-  const [seed, setSeed] = useState<number>(() => randomSeed());
+export function SetupScreen({ onStart, initialConfig }: SetupScreenProps) {
+  const [mode, setMode] = useState<GameMode>(
+    () => initialConfig?.mode ?? { kind: 'sp', tier: 'easy' },
+  );
+  const [scoring, setScoring] = useState<ScoreMode>(
+    () => initialConfig?.scoring ?? 'standard',
+  );
+  const [matrixSource, setMatrixSource] = useState<MatrixSource>(
+    () => initialConfig?.matrixSource ?? 'generated',
+  );
+  const [seed, setSeed] = useState<number>(
+    () => initialConfig?.seed ?? randomSeed(),
+  );
   // Default to Generated, so rosters auto-populate immediately.
   const [rosterA, setRosterA] = useState<ReadonlyArray<FactionId | null>>(
-    () => randomRoster(),
+    () => initialConfig?.rosterA ?? randomRoster(),
   );
   const [rosterB, setRosterB] = useState<ReadonlyArray<FactionId | null>>(
-    () => randomRoster(),
+    () => initialConfig?.rosterB ?? randomRoster(),
   );
 
   function handleSourceChange(next: MatrixSource): void {
@@ -76,17 +88,14 @@ export function SetupScreen({ onStart }: SetupScreenProps) {
   }
 
   // Start enablement:
-  //   - SP-only for now (hot-seat is Phase U4).
   //   - Generated-only for now (entered matrix is Phase U5).
   //   - Both rosters fully picked.
-  const isHotSeat = mode.kind === 'hot-seat';
   const isEntered = matrixSource === 'entered';
   const rostersReady = rosterReady(rosterA) && rosterReady(rosterB);
-  const canStart = !isHotSeat && !isEntered && rostersReady;
+  const canStart = !isEntered && rostersReady;
 
   let disabledReason: string | null = null;
-  if (isHotSeat) disabledReason = 'Hot-seat play coming in Phase U4';
-  else if (isEntered) disabledReason = 'Matrix entry coming in Phase U5';
+  if (isEntered) disabledReason = 'Matrix entry coming in Phase U5';
   else if (!rostersReady) disabledReason = 'Pick all 16 factions';
 
   function handleStart(): void {

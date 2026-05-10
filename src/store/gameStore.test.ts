@@ -40,6 +40,7 @@ beforeEach(() => {
     state: null,
     config: null,
     humanSeat: null,
+    pendingHandoff: null,
     _aiActorA: null,
     _aiActorB: null,
   });

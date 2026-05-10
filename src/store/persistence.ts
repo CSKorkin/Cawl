@@ -11,6 +11,10 @@ export interface PersistedGame {
   readonly state: PairingState;
   readonly config: GameConfig;
   readonly humanSeat: Team | null;
+  // Hot-seat: when set, the UI must show the Interstitial before rendering
+  // any matrix view. Persisted so a mid-handoff reload doesn't leak the
+  // next mover's view.
+  readonly pendingHandoff: Team | null;
 }
 
 // Returns null when nothing is stored, or when the stored payload is
@@ -21,11 +25,17 @@ export function loadGame(): PersistedGame | null {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (raw === null) return null;
   try {
-    const parsed = JSON.parse(raw) as PersistedGame;
+    const parsed = JSON.parse(raw) as Partial<PersistedGame>;
     // Light sanity check; deeper validation isn't worth the maintenance cost
     // since the only writer is this module.
     if (parsed?.state?.phase === undefined) return null;
-    return parsed;
+    if (parsed.config === undefined) return null;
+    return {
+      state: parsed.state,
+      config: parsed.config,
+      humanSeat: parsed.humanSeat ?? null,
+      pendingHandoff: parsed.pendingHandoff ?? null,
+    };
   } catch {
     return null;
   }

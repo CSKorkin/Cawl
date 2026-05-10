@@ -80,12 +80,11 @@ describe('SetupScreen — Generated mode (default)', () => {
     expect(screen.getByRole('button', { name: /Start/i })).not.toBeDisabled();
   });
 
-  it('Start button is disabled when Hot-seat is selected (Phase U4 hint)', async () => {
+  it('Start button is enabled when Hot-seat is selected (U4 onwards)', async () => {
     const user = userEvent.setup();
     render(<SetupScreen onStart={() => {}} />);
     await user.click(screen.getByLabelText(/Hot-seat/i));
-    expect(screen.getByRole('button', { name: /Start/i })).toBeDisabled();
-    expect(screen.getByTestId('start-disabled-reason')).toHaveTextContent(/Phase U4/i);
+    expect(screen.getByRole('button', { name: /Start/i })).not.toBeDisabled();
   });
 });
 
