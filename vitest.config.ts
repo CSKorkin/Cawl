@@ -1,9 +1,17 @@
 import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
 
 export default defineConfig({
+  plugins: [react()],
   test: {
     globals: true,
-    include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
+    // Use jsdom for everything: component tests need it, and engine tests
+    // don't touch the DOM so the small startup cost is irrelevant. Vitest 3
+    // deprecated environmentMatchGlobs in favor of `projects`, which is more
+    // configuration than the marginal speed gain warrants here.
+    environment: 'jsdom',
+    setupFiles: ['./src/test-setup.ts'],
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'tests/**/*.test.ts'],
     coverage: {
       provider: 'v8',
       include: ['src/engine/**/*.ts'],

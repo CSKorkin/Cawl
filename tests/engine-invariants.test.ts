@@ -1,9 +1,11 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
 
-const ENGINE_DIR = fileURLToPath(new URL('../src/engine/', import.meta.url));
+// Resolve from process.cwd() rather than import.meta.url because jsdom
+// reports import.meta.url as an http URL (fileURLToPath rejects non-file
+// schemes). Vitest always runs from the project root.
+const ENGINE_DIR = join(process.cwd(), 'src/engine');
 
 function listEngineSources(dir: string): string[] {
   const out: string[] = [];

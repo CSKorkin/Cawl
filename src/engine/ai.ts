@@ -314,7 +314,7 @@ export function mediumActor(seat: Team): Actor {
 const TABLE_ID_MIN = 1;
 const TABLE_ID_MAX = 8;
 
-function availableTables(state: PairingState): TableId[] {
+export function availableTables(state: PairingState): TableId[] {
   const used = new Set(
     state.pairings.map(p => p.tableId).filter((x): x is number => x !== undefined),
   );
@@ -326,7 +326,7 @@ function availableTables(state: PairingState): TableId[] {
 // Token-holder-first ordering for table picks, derived from pairing state.
 // Mirrors the engine's internal logic but lives here because the driver needs
 // to know which actor to call before dispatching.
-function nextTableTeam(state: PairingState): Team {
+export function nextTableTeam(state: PairingState): Team {
   const holder = state.tokenHolder!;
   const other: Team = holder === 'A' ? 'B' : 'A';
   if (state.phase === 'SCRUM.AWAITING_TABLES') {
