@@ -19,6 +19,9 @@ Use these terms exactly. Don't paraphrase to "selected army" or "rejected pick" 
 - **Pairing matrix** — 8×8 grid. Each cell in Team A's view is *A's* expected score for that matchup, from A's perspective. Team B's view of the same matchup is structurally inverted (WTC scoring splits a fixed total per matchup, so A's expected share and B's expected share sum to the mode's total) and then has per-cell variance applied on top. The two views are therefore close to mirror-images, slightly perturbed — that bounded asymmetry on top of the inversion is the whole game. Two scoring modes are supported; see _Matrix and visual specifics_ below.
 - **Round 1 / Round 2 / Scrum** — the three pairing rounds. The Scrum auto-resolves the final two games (refused-vs-refused and last-man-vs-last-man). See `spec.md` for exact mechanics.
 - **Atlas mode** — the alternate ordinal scoring scale {1, 2, 2.5, 3, 3.5, 4, 5}, opt-in. Default is the integer 0–20 scale.
+- **Pairing card** — the on-screen card representing one army (logo + name, rounded square). Cards animate between roster, triangle pick zone, and slate.
+- **Triangle pick zone** — per-team active-pick area. Three card slots laid out so they form a triangle: defender slot at the bottom, two attacker slots above.
+- **Slate** — the live record of decided pairings, rendered as an 8×3 grid (Team B army row / table-choice row / Team A army row), filled left-to-right in chronological table-choice order. Columns 7–8 are reserved for the scrum's two auto-pairs.
 
 ## Tech stack (recommended starting point)
 
@@ -74,11 +77,19 @@ This section covers both engine concerns (score generation, variance) and render
 **Engine implication:** abstract over both modes. The engine should treat "score" as a typed value with a mode-aware comparator, color-bander, and variance function — not hardcode 0–20 anywhere outside the default-mode module.
 
 **Layout:**
-- Matrix is 8×8. Team A armies down rows, Team B armies across columns. Each cell shows the score, color-coded.
+- Matrix is 8×8. Team A armies down rows, Team B armies across columns. Each cell shows the score, color-coded. The matrix stays visually centered inside its container as paired rows/columns drop out (matrix shrinks; the container does not).
 - Logos: provided as 60×60 white-on-transparent PNGs in `public/logos/`. They render as-is on dark backgrounds; on light backgrounds wrap them in a dark container or apply a CSS filter. Don't try to recolor the source PNGs at build time.
 - Army slots: 8 per team. Logo + name. Hover reveals faction + list summary. Click selects.
 - Table choice token: visible on screen at all times, with an animated handoff between teams between rounds.
 - Log panel: append-only record of each round's decisions (defender, attackers proposed, attacker refused, table chosen, which team had the token).
+
+**Pairing surface (the physical-mat metaphor):**
+
+The play screen mirrors a WTC pairing mat. Three composable visual elements:
+
+- **Pairing card** — rounded square per army (logo + name). Cards are the *moveable unit* on screen. They start in the team's roster column, slide to the active triangle pick zone on selection, then slide to the slate grid once the pairing locks in.
+- **Triangle pick zone** — one per team, hosts the active step. Three rounded-square slots arranged so they form a triangle: 1 *defender slot* at the bottom, 2 *attacker slots* above it (top-left and top-right). Cards slide into these slots when the user clicks a roster entry; clicking a filled slot removes the card.
+- **Slate grid** — the live pairings record. 8 columns × 3 rows. Top row = Team B's army, middle row = the table-choice indicator, bottom row = Team A's army. Pairings fill *left-to-right in the chronological order their table was chosen*. Two columns are reserved at the right end for the scrum's auto-pairs: column 7 = `RefusedAutoPaired` (the second auto-pair), column 8 = `LastManAutoPaired` (the first auto-pair). The slate is the at-a-glance "what's been decided" view; the matrix is the "what's still open" view.
 
 ## Information hiding
 
