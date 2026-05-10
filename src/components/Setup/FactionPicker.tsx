@@ -41,7 +41,7 @@ export function FactionPicker({
           aria-label={`Slot ${slotIndex + 1}`}
           value={value ?? ''}
           onChange={(e) => onChange(e.target.value === '' ? null : e.target.value)}
-          className="flex-1 rounded border border-slate-700 bg-slate-800 px-2 py-1 text-sm focus:border-sky-500 focus:outline-none"
+          className="flex-1 rounded border border-slate-700 bg-slate-800 px-2 py-1 text-sm focus:border-sky-500 focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400"
         >
           <option value="">— pick a faction —</option>
           {FACTIONS.map((f) => (

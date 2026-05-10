@@ -95,14 +95,14 @@ export function Matrix({ view }: MatrixProps) {
   }
 
   return (
-    <div className="overflow-x-auto" data-testid="matrix">
+    <div className="mx-auto inline-block overflow-x-auto" data-testid="matrix">
       <table className="border-separate border-spacing-1 text-center text-sm">
         <thead>
           <tr>
             <th className="text-xs text-slate-500"></th>
             {visibleCols.map(({ id }) => (
               <th key={id} className="text-xs text-slate-400" title={findFaction(id)?.displayName}>
-                {labelOf(id)}
+                <FactionLogo armyId={id} />
               </th>
             ))}
             <th className="text-xs uppercase text-slate-500">avg</th>
@@ -115,14 +115,19 @@ export function Matrix({ view }: MatrixProps) {
                 className="text-xs text-slate-400"
                 title={findFaction(rowId)?.displayName}
               >
-                {labelOf(rowId)}
+                <FactionLogo armyId={rowId} />
               </th>
               {visibleCols.map(({ id: colId, j }) => {
                 const score = myView[i]![j]!;
+                // U6 polish: in atlas mode, half-tier values (2.5 / 3.5)
+                // render in italic so they stand out from the integer
+                // tiers at a glance.
+                const isHalfTier = score.mode === 'atlas' && !Number.isInteger(score.value);
+                const halfClass = isHalfTier ? 'italic text-sm' : '';
                 return (
                   <td
                     key={colId}
-                    className={`h-9 w-10 rounded font-mono ${cellClass(score)}`}
+                    className={`h-9 w-10 rounded font-mono ${cellClass(score)} ${halfClass}`}
                     data-testid={`cell-${i}-${j}`}
                   >
                     {score.value}
@@ -156,11 +161,24 @@ export function Matrix({ view }: MatrixProps) {
   );
 }
 
-// Compact single-letter row/col label using the engine's army id. The slot
-// detail (faction logo + name) lives in the Roster panels alongside.
+// Faction logo used as the row/col header. Falls back to the armyId
+// initials if the catalog has no entry (lets engine fixture ids like
+// "a0"/"b3" still render in tests).
+function FactionLogo({ armyId }: { readonly armyId: string }) {
+  const faction = findFaction(armyId);
+  if (faction === undefined) {
+    return <span className="block text-xs">{labelOf(armyId)}</span>;
+  }
+  return (
+    <img
+      src={faction.logoPath}
+      alt={faction.displayName}
+      className="mx-auto h-7 w-7 object-contain"
+    />
+  );
+}
+
 function labelOf(id: string): string {
-  // Engine ArmyIds in the UI are faction slugs ("space-marines", etc.).
-  // Show first letter capitalized + numeric suffix if present.
   const m = id.match(/-(\d+)$/);
   if (m !== null) return id[0]!.toUpperCase() + m[1]!;
   return id[0]!.toUpperCase();

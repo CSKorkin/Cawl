@@ -95,13 +95,90 @@ describe('PlayScreen — selection is scoped to the clicked roster', () => {
     });
     render(<App />);
 
-    await user.click(screen.getByTestId('slot-a-space-marines'));
+    await user.click(screen.getByTestId('card-A-space-marines'));
 
-    // Team A's Space Marines slot is selected; Team B's is not.
-    expect(screen.getByTestId('slot-a-space-marines'))
-      .toHaveAttribute('data-selected', 'true');
-    expect(screen.getByTestId('slot-b-space-marines'))
-      .toHaveAttribute('data-selected', 'false');
+    // Team A's Space Marines card is highlighted; Team B's is not.
+    expect(screen.getByTestId('card-A-space-marines'))
+      .toHaveAttribute('data-highlighted', 'true');
+    expect(screen.getByTestId('card-B-space-marines'))
+      .toHaveAttribute('data-highlighted', 'false');
+  });
+});
+
+describe('PlayScreen — U7 pairing surface (cards land in triangle / slate)', () => {
+  it('clicking a defender-eligible card moves it from roster to the triangle defender slot', async () => {
+    const user = userEvent.setup();
+    useGameStore.getState().startGame(spEasyConfig());
+    render(<App />);
+
+    const target = ROSTER_A[0];
+    const card = screen.getByTestId(`card-A-${target}`);
+    // Initially in the roster column (parent is a roster container).
+    expect(card.closest('[data-testid="roster-play-a"]')).not.toBeNull();
+    expect(card.closest('[data-testid="triangle-a"]')).toBeNull();
+
+    await user.click(card);
+
+    // After click, the same card now lives inside the team A triangle's
+    // defender slot.
+    const cardAfter = screen.getByTestId(`card-A-${target}`);
+    expect(cardAfter.closest('[data-testid="triangle-a"]')).not.toBeNull();
+    expect(cardAfter.closest('[data-testid="triangle-slot-a-defender"]')).not.toBeNull();
+  });
+
+  it('after one full round step, the two paired cards land in the slate column for that table', async () => {
+    const user = userEvent.setup();
+    useGameStore.getState().startGame(spEasyConfig());
+    render(<App />);
+
+    // Drive forward until at least one pairing has a tableId set — the
+    // signal that one R1 step has fully completed (table picked).
+    let safety = 12;
+    while (useGameStore.getState().state!.pairings.every((p) => p.tableId === undefined)) {
+      if (safety-- <= 0) throw new Error('did not converge to a pairing with a tableId');
+      const s = useGameStore.getState().state!;
+      const view = viewFor(s, 'A');
+      switch (s.phase) {
+        case 'ROUND_1.AWAITING_DEFENDERS': {
+          await user.click(screen.getByTestId(`card-A-${view.myPool[0]!}`));
+          await user.click(screen.getByTestId('confirm-button'));
+          break;
+        }
+        case 'ROUND_1.AWAITING_ATTACKERS': {
+          const ownDef = view.step.defenders!.revealed!.a;
+          const eligible = view.myPool.filter((a) => a !== ownDef);
+          await user.click(screen.getByTestId(`card-A-${eligible[0]!}`));
+          await user.click(screen.getByTestId(`card-A-${eligible[1]!}`));
+          await user.click(screen.getByTestId('confirm-button'));
+          break;
+        }
+        case 'ROUND_1.AWAITING_REFUSALS': {
+          const sentAtMe = view.step.attackers!.revealed!.b;
+          await user.click(screen.getByTestId(`card-B-${sentAtMe[0]!}`));
+          await user.click(screen.getByTestId('confirm-button'));
+          break;
+        }
+        case 'ROUND_1.AWAITING_TABLES': {
+          const tablePicker = screen.getByTestId('table-picker');
+          const buttons = within(tablePicker).getAllByRole('button');
+          await user.click(buttons[0]!);
+          await user.click(screen.getByTestId('confirm-button'));
+          break;
+        }
+        default:
+          throw new Error(`unexpected phase ${s.phase}`);
+      }
+    }
+
+    // After one round step, two pairings exist. At least one should have
+    // a tableId set, and its two armies should render inside a slate column.
+    const finished = useGameStore.getState().state!;
+    const withTable = finished.pairings.find((p) => p.tableId !== undefined);
+    expect(withTable).toBeDefined();
+    const aCard = screen.getByTestId(`card-A-${withTable!.aArmy}`);
+    const bCard = screen.getByTestId(`card-B-${withTable!.bArmy}`);
+    expect(aCard.closest('[data-testid="slate-grid"]')).not.toBeNull();
+    expect(bCard.closest('[data-testid="slate-grid"]')).not.toBeNull();
   });
 });
 
@@ -134,7 +211,7 @@ describe('PlayScreen — full single-player vs Easy game smoke test', () => {
         case 'ROUND_2.AWAITING_DEFENDERS':
         case 'SCRUM.AWAITING_DEFENDERS': {
           const armyId = view.myPool[0]!;
-          await user.click(screen.getByTestId(`slot-a-${armyId}`));
+          await user.click(screen.getByTestId(`card-A-${armyId}`));
           await user.click(screen.getByTestId('confirm-button'));
           break;
         }
@@ -143,8 +220,8 @@ describe('PlayScreen — full single-player vs Easy game smoke test', () => {
         case 'SCRUM.AWAITING_ATTACKERS': {
           const ownDef = view.step.defenders!.revealed!.a;
           const eligible = view.myPool.filter(a => a !== ownDef);
-          await user.click(screen.getByTestId(`slot-a-${eligible[0]!}`));
-          await user.click(screen.getByTestId(`slot-a-${eligible[1]!}`));
+          await user.click(screen.getByTestId(`card-A-${eligible[0]!}`));
+          await user.click(screen.getByTestId(`card-A-${eligible[1]!}`));
           await user.click(screen.getByTestId('confirm-button'));
           break;
         }
@@ -156,7 +233,7 @@ describe('PlayScreen — full single-player vs Easy game smoke test', () => {
           // one of opp's two attackers is the engine-level refusal.
           const accepted = sentAtMe[0]!;
           const expectedRefused = sentAtMe[1]!;
-          await user.click(screen.getByTestId(`slot-b-${accepted}`));
+          await user.click(screen.getByTestId(`card-B-${accepted}`));
           await user.click(screen.getByTestId('confirm-button'));
           // Last log entry should be a RefusalsRevealed naming the *other*
           // attacker as A's refusal.

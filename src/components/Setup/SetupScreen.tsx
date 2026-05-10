@@ -142,11 +142,16 @@ export function SetupScreen({ onStart, initialConfig }: SetupScreenProps) {
 
   return (
     <main className="mx-auto max-w-6xl space-y-8 p-6">
-      <header>
+      <header className="space-y-1">
         <h1 className="text-2xl font-bold">Cawl</h1>
         <p className="text-sm text-slate-400">
           A WTC pairings simulator. Configure the game, then start.
         </p>
+        {initialConfig !== null && initialConfig !== undefined && (
+          <p className="text-xs text-slate-500" data-testid="setup-resumed-hint">
+            Previous game configuration restored — adjust below or hit Start to play again.
+          </p>
+        )}
       </header>
 
       <section className="grid grid-cols-1 gap-8 md:grid-cols-3">

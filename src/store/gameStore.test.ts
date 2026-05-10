@@ -225,4 +225,41 @@ describe('gameStore — persistence', () => {
     useGameStore.getState().resetGame();
     expect(loadGame()).toBeNull();
   });
+
+  // U6 polish: full reload preserves in-flight state. Simulates a page
+  // refresh by reading the persisted payload back through `loadGame` (the
+  // same path the store's lazy initializer uses on first load) and
+  // checking that nothing essential — phase, log, pairings, pendingHandoff,
+  // viewA matrix anchor — was dropped.
+  it('mid-game state round-trips through localStorage (reload-safe)', () => {
+    useGameStore.getState().startGame(configSpEasy(0xface));
+    // Drive a few human dispatches so we have a non-trivial state.
+    useGameStore.getState().dispatch({ type: 'LOCK_IN_DEFENDER', team: 'A', armyId: 'a0' });
+    useGameStore.getState().dispatch({ type: 'LOCK_IN_ATTACKERS', team: 'A', armyIds: ['a1', 'a2'] });
+    const before = useGameStore.getState();
+    const persisted = loadGame();
+    expect(persisted).not.toBeNull();
+
+    // Same phase, same log length, same pendingHandoff (null in SP).
+    expect(persisted!.state.phase).toBe(before.state!.phase);
+    expect(persisted!.state.log.length).toBe(before.state!.log.length);
+    expect(persisted!.pendingHandoff).toBe(before.pendingHandoff);
+
+    // Matrix anchor (viewA) is byte-equal — proves the engine RNG/matrix
+    // wasn't re-rolled on the round trip.
+    expect(persisted!.state.matrix.viewA).toEqual(before.state!.matrix.viewA);
+    // Config (including humanSeat) survives.
+    expect(persisted!.config.seed).toBe(before.config!.seed);
+    expect(persisted!.humanSeat).toBe(before.humanSeat);
+  });
+
+  it('hot-seat pendingHandoff is persisted (mid-handoff reload stays safe)', () => {
+    useGameStore.getState().startGame(configHotSeat());
+    useGameStore.getState().dispatch({ type: 'LOCK_IN_DEFENDER', team: 'A', armyId: 'a0' });
+    expect(useGameStore.getState().pendingHandoff).toBe('B');
+    const persisted = loadGame();
+    // Whoever the handoff is for survives the round trip — guards against
+    // a refresh-mid-handoff leaking the next mover's view.
+    expect(persisted!.pendingHandoff).toBe('B');
+  });
 });
