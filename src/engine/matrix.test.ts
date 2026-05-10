@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { generateMatrix, MATRIX_SIZE } from './matrix.js';
+import { generateMatrix, generateMatrixFromViewA, MATRIX_SIZE } from './matrix.js';
 import { ATLAS_TIERS } from './score.js';
 import type { Score } from './score.js';
 import { seed } from './rng.js';
@@ -204,6 +204,45 @@ describe('matrix.generateMatrix — params', () => {
         if (s.mode === 'standard') expect(s.value).toBeLessThanOrEqual(3);
       }
     }
+  });
+});
+
+describe('matrix.generateMatrixFromViewA — entered-matrix override path', () => {
+  function constantViewA(value: number): Score[][] {
+    return Array.from({ length: MATRIX_SIZE }, () =>
+      Array.from({ length: MATRIX_SIZE }, () => ({ mode: 'standard', value } as Score)),
+    );
+  }
+
+  it('uses the supplied viewA verbatim', () => {
+    const viewA = constantViewA(12);
+    const { matrix } = generateMatrixFromViewA(seed(123), 'standard', viewA);
+    expect(matrix.viewA).toEqual(viewA);
+  });
+
+  it('still derives viewB via inversion + variance (asymmetry property holds)', () => {
+    const viewA = constantViewA(15);
+    const { matrix } = generateMatrixFromViewA(seed(123), 'standard', viewA);
+    for (let i = 0; i < MATRIX_SIZE; i++) {
+      for (let j = 0; j < MATRIX_SIZE; j++) {
+        const a = matrix.viewA[i]![j]!.value as number;
+        const b = matrix.viewB[j]![i]!.value as number;
+        // |a - (20 - b)| ≤ 3 (the standard-mode variance bound)
+        expect(Math.abs(a - (20 - b))).toBeLessThanOrEqual(3);
+        expect(isValidStandard(matrix.viewB[j]![i]!)).toBe(true);
+      }
+    }
+  });
+
+  it('throws on wrong row count', () => {
+    expect(() =>
+      generateMatrixFromViewA(seed(0), 'standard', constantViewA(10).slice(0, 5)),
+    ).toThrow(/8/);
+  });
+
+  it('throws on wrong column count', () => {
+    const v = constantViewA(10).map((row, i) => (i === 0 ? row.slice(0, 6) : row));
+    expect(() => generateMatrixFromViewA(seed(0), 'standard', v)).toThrow(/8/);
   });
 });
 

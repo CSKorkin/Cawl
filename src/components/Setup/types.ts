@@ -1,4 +1,4 @@
-import type { ScoreMode } from '../../engine/score.js';
+import type { Score, ScoreMode } from '../../engine/score.js';
 import type { FactionId } from '../../factions.js';
 
 // Hot-seat: two humans share the device. SP: human plays one seat, AI the
@@ -23,4 +23,8 @@ export interface GameConfig {
   readonly seed: number;
   readonly rosterA: readonly FactionId[];
   readonly rosterB: readonly FactionId[];
+  // Set when matrixSource === 'entered'. Pre-built viewA from the user's
+  // typed/pasted matrix; the engine derives viewB via inversion + variance
+  // off `seed`. Absent for Generated mode (engine draws viewA from RNG).
+  readonly viewAOverride?: readonly (readonly Score[])[];
 }

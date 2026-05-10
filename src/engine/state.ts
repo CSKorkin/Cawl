@@ -5,7 +5,7 @@
 // Dates, or methods. `viewFor` is the only sanctioned way to read state
 // from outside the engine — it strips the opposing team's pending slots.
 
-import { generateMatrix } from './matrix.js';
+import { generateMatrix, generateMatrixFromViewA } from './matrix.js';
 import type { Matrix } from './matrix.js';
 import type { Score, ScoreMode } from './score.js';
 import { pick, seed as mkSeed } from './rng.js';
@@ -120,6 +120,11 @@ export interface InitialStateConfig {
   readonly seed: number;
   readonly rosterA: readonly ArmyId[];
   readonly rosterB: readonly ArmyId[];
+  // Optional: a pre-built viewA from the Entered matrix flow. When
+  // present, the engine uses it as the anchor and derives viewB via
+  // inversion + variance off the seed RNG (same statistical properties
+  // as the Generated path, just with the user's chosen anchor).
+  readonly viewAOverride?: readonly (readonly Score[])[];
 }
 
 const ROSTER_SIZE = 8;
@@ -136,7 +141,9 @@ export function createInitialState(config: InitialStateConfig): PairingState {
     );
   }
   const initialRng = mkSeed(config.seed);
-  const { rng, matrix } = generateMatrix(initialRng, config.mode);
+  const { rng, matrix } = config.viewAOverride !== undefined
+    ? generateMatrixFromViewA(initialRng, config.mode, config.viewAOverride)
+    : generateMatrix(initialRng, config.mode);
   return {
     phase: 'ROUND_1.AWAITING_DEFENDERS',
     mode: config.mode,

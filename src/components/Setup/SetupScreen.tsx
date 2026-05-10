@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ModePicker } from './ModePicker.js';
 import { ScoringPicker } from './ScoringPicker.js';
 import { MatrixSourcePicker } from './MatrixSourcePicker.js';
 import { RosterPicker } from './RosterPicker.js';
+import { MatrixEntry } from './MatrixEntry.js';
 import type { GameConfig, GameMode, MatrixSource } from './types.js';
-import type { ScoreMode } from '../../engine/score.js';
+import type { Score, ScoreMode, AtlasTier } from '../../engine/score.js';
 import type { FactionId } from '../../factions.js';
 import { FACTIONS } from '../../factions.js';
 
@@ -44,6 +45,20 @@ function rosterReady(roster: ReadonlyArray<FactionId | null>): boolean {
   return roster.length === ROSTER_SIZE && roster.every((v) => v !== null);
 }
 
+// Convert the typed/pasted 8x8 of plain numbers into the engine's tagged
+// Score values. Standard mode wraps each number directly; atlas treats
+// each value as a tier (the grid's <select> already constrains values to
+// ATLAS_TIERS so the cast is safe).
+function toScoreMatrix(
+  scoring: ScoreMode,
+  matrix: readonly (readonly number[])[],
+): readonly (readonly Score[])[] {
+  return matrix.map((row) => row.map((value) => {
+    if (scoring === 'standard') return { mode: 'standard', value } as const;
+    return { mode: 'atlas', value: value as AtlasTier } as const;
+  }));
+}
+
 export function SetupScreen({ onStart, initialConfig }: SetupScreenProps) {
   const [mode, setMode] = useState<GameMode>(
     () => initialConfig?.mode ?? { kind: 'sp', tier: 'easy' },
@@ -64,9 +79,19 @@ export function SetupScreen({ onStart, initialConfig }: SetupScreenProps) {
   const [rosterB, setRosterB] = useState<ReadonlyArray<FactionId | null>>(
     () => initialConfig?.rosterB ?? randomRoster(),
   );
+  // Entered mode only: the validated 8x8 matrix typed/pasted by the user
+  // (numbers in [0,20] for standard, atlas tier values for atlas). Null
+  // until the user finishes entry. Memoize-style callback to satisfy the
+  // grid's effect-dependency check.
+  const [enteredMatrix, setEnteredMatrix] = useState<readonly (readonly number[])[] | null>(null);
+  const handleMatrixChange = useCallback(
+    (m: readonly (readonly number[])[] | null) => setEnteredMatrix(m),
+    [],
+  );
 
   function handleSourceChange(next: MatrixSource): void {
     setMatrixSource(next);
+    setEnteredMatrix(null);
     if (next === 'generated') {
       // Switching to Generated: re-randomize rosters AND seed so the user
       // sees a fresh draw.
@@ -74,8 +99,8 @@ export function SetupScreen({ onStart, initialConfig }: SetupScreenProps) {
       setRosterB(randomRoster());
       setSeed(randomSeed());
     } else {
-      // Switching to Entered: clear rosters; user will pick alongside the
-      // matrix in Phase U5.
+      // Switching to Entered: clear rosters; the user will pick them after
+      // the matrix has been validated.
       setRosterA(emptyRoster());
       setRosterB(emptyRoster());
     }
@@ -88,14 +113,15 @@ export function SetupScreen({ onStart, initialConfig }: SetupScreenProps) {
   }
 
   // Start enablement:
-  //   - Generated-only for now (entered matrix is Phase U5).
   //   - Both rosters fully picked.
+  //   - For Entered mode: a validated matrix is loaded.
   const isEntered = matrixSource === 'entered';
   const rostersReady = rosterReady(rosterA) && rosterReady(rosterB);
-  const canStart = !isEntered && rostersReady;
+  const matrixReady = !isEntered || enteredMatrix !== null;
+  const canStart = rostersReady && matrixReady;
 
   let disabledReason: string | null = null;
-  if (isEntered) disabledReason = 'Matrix entry coming in Phase U5';
+  if (isEntered && enteredMatrix === null) disabledReason = 'Enter and validate the matrix first';
   else if (!rostersReady) disabledReason = 'Pick all 16 factions';
 
   function handleStart(): void {
@@ -107,6 +133,9 @@ export function SetupScreen({ onStart, initialConfig }: SetupScreenProps) {
       seed,
       rosterA: rosterA.filter((v): v is FactionId => v !== null),
       rosterB: rosterB.filter((v): v is FactionId => v !== null),
+      ...(isEntered && enteredMatrix !== null
+        ? { viewAOverride: toScoreMatrix(scoring, enteredMatrix) }
+        : {}),
     };
     onStart(config);
   }
@@ -131,10 +160,16 @@ export function SetupScreen({ onStart, initialConfig }: SetupScreenProps) {
         />
       </section>
 
-      <section className="grid grid-cols-1 gap-8 md:grid-cols-2">
-        <RosterPicker team="A" value={rosterA} onChange={setRosterA} editable={isEntered} />
-        <RosterPicker team="B" value={rosterB} onChange={setRosterB} editable={isEntered} />
-      </section>
+      {isEntered && (
+        <MatrixEntry scoring={scoring} onMatrixChange={handleMatrixChange} />
+      )}
+
+      {(!isEntered || enteredMatrix !== null) && (
+        <section className="grid grid-cols-1 gap-8 md:grid-cols-2">
+          <RosterPicker team="A" value={rosterA} onChange={setRosterA} editable={isEntered} />
+          <RosterPicker team="B" value={rosterB} onChange={setRosterB} editable={isEntered} />
+        </section>
+      )}
 
       <footer className="flex items-center justify-end gap-4 border-t border-slate-800 pt-4">
         {disabledReason !== null && (

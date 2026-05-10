@@ -38,6 +38,41 @@ export function generateMatrix(
     viewA.push(row);
   }
 
+  return deriveViewB(state, mode, viewA);
+}
+
+// Build a Matrix from a caller-supplied viewA (used by the Entered matrix
+// flow). viewB is still derived through inversion + per-cell variance off
+// the same RNG path so its statistical properties match the Generated
+// flow — the user's typed matrix is purely the anchor.
+export function generateMatrixFromViewA(
+  rng: RngState,
+  mode: ScoreMode,
+  viewA: readonly (readonly Score[])[],
+): { rng: RngState; matrix: Matrix } {
+  if (viewA.length !== MATRIX_SIZE) {
+    throw new RangeError(
+      `viewA must be ${MATRIX_SIZE}×${MATRIX_SIZE}, got ${viewA.length} rows`,
+    );
+  }
+  for (let i = 0; i < MATRIX_SIZE; i++) {
+    if (viewA[i]!.length !== MATRIX_SIZE) {
+      throw new RangeError(
+        `viewA row ${i} has ${viewA[i]!.length} cells, expected ${MATRIX_SIZE}`,
+      );
+    }
+  }
+  // Defensive copy so mutations on the input don't leak into the engine.
+  const copied: Score[][] = viewA.map((row) => row.slice());
+  return deriveViewB(rng, mode, copied);
+}
+
+function deriveViewB(
+  rng: RngState,
+  mode: ScoreMode,
+  viewA: readonly (readonly Score[])[],
+): { rng: RngState; matrix: Matrix } {
+  let state = rng;
   // For each matchup, B's expected score starts as the INVERSE of A's around
   // the mode's midpoint (split-scoring complement), then has per-cell variance
   // applied on top. Collected row-major in (i, j) order to match viewA's
@@ -52,10 +87,8 @@ export function generateMatrix(
     }
     viewBRaw.push(row);
   }
-
   const viewB: Score[][] = Array.from({ length: MATRIX_SIZE }, (_, j) =>
     Array.from({ length: MATRIX_SIZE }, (_, i) => viewBRaw[i]![j]!),
   );
-
   return { rng: state, matrix: { mode, viewA, viewB } };
 }

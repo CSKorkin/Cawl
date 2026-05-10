@@ -89,34 +89,55 @@ describe('SetupScreen — Generated mode (default)', () => {
 });
 
 describe('SetupScreen — Entered mode', () => {
-  it('clears the rosters and shows dropdowns when switching to Entered', async () => {
+  // A valid 8x8 grid of "Y" cells (= 10 each) in sheet-paste format.
+  const VALID_PASTE = Array(8)
+    .fill(Array(8).fill('Y').join('\t'))
+    .join('\n');
+
+  async function pasteValidMatrix(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+    await user.click(screen.getByLabelText(/Entered/i));
+    const textarea = screen.getByTestId('matrix-paste-textarea');
+    await user.click(textarea);
+    await user.paste(VALID_PASTE);
+    await user.click(screen.getByTestId('matrix-paste-validate'));
+  }
+
+  it('switching to Entered hides the rosters until a matrix is validated', async () => {
     const user = userEvent.setup();
     render(<SetupScreen onStart={() => {}} />);
     await user.click(screen.getByLabelText(/Entered/i));
+    // Rosters are gone — they appear AFTER matrix validation.
+    expect(screen.queryByTestId('roster-a')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('roster-b')).not.toBeInTheDocument();
+    // Matrix entry is visible.
+    expect(screen.getByTestId('matrix-entry')).toBeInTheDocument();
+  });
+
+  it('Start is disabled with a "validate the matrix first" hint until validated', async () => {
+    const user = userEvent.setup();
+    render(<SetupScreen onStart={() => {}} />);
+    await user.click(screen.getByLabelText(/Entered/i));
+    expect(screen.getByRole('button', { name: /Start/i })).toBeDisabled();
+    expect(screen.getByTestId('start-disabled-reason')).toHaveTextContent(/validate the matrix/i);
+  });
+
+  it('after a valid paste, rosters appear with empty dropdowns', async () => {
+    const user = userEvent.setup();
+    render(<SetupScreen onStart={() => {}} />);
+    await pasteValidMatrix(user);
 
     const rosterA = screen.getByTestId('roster-a');
     const slot0 = within(rosterA).getByTestId('team-a-slot-0');
-    // Dropdown is now visible.
     expect(within(slot0).getByRole('combobox')).toBeInTheDocument();
-    // Read-only name span is gone.
-    expect(within(slot0).queryByTestId('team-a-slot-0-name')).not.toBeInTheDocument();
     // No factions populated yet.
     const select = within(slot0).getByRole('combobox') as HTMLSelectElement;
     expect(select.value).toBe('');
   });
 
-  it('Entered mode disables Start with a Phase U5 hint', async () => {
-    const user = userEvent.setup();
-    render(<SetupScreen onStart={() => {}} />);
-    await user.click(screen.getByLabelText(/Entered/i));
-    expect(screen.getByRole('button', { name: /Start/i })).toBeDisabled();
-    expect(screen.getByTestId('start-disabled-reason')).toHaveTextContent(/Phase U5/i);
-  });
-
   it('disables already-chosen factions in OTHER slots within the same team', async () => {
     const user = userEvent.setup();
     render(<SetupScreen onStart={() => {}} />);
-    await user.click(screen.getByLabelText(/Entered/i));
+    await pasteValidMatrix(user);
     const rosterA = screen.getByTestId('roster-a');
     const slot0Select = within(within(rosterA).getByTestId('team-a-slot-0')).getByRole('combobox') as HTMLSelectElement;
     await user.selectOptions(slot0Select, 'Space Marines');
@@ -140,6 +161,66 @@ describe('SetupScreen — Entered mode', () => {
     render(<SetupScreen onStart={() => {}} />);
     await user.click(screen.getByLabelText(/Entered/i));
     expect(screen.queryByRole('button', { name: /Re-roll/i })).not.toBeInTheDocument();
+  });
+
+  it('paste error is surfaced and rosters stay hidden', async () => {
+    const user = userEvent.setup();
+    render(<SetupScreen onStart={() => {}} />);
+    await user.click(screen.getByLabelText(/Entered/i));
+    const textarea = screen.getByTestId('matrix-paste-textarea');
+    await user.click(textarea);
+    // 7 rows instead of 8 → row-count error.
+    await user.paste(Array(7).fill(Array(8).fill('Y').join('\t')).join('\n'));
+    await user.click(screen.getByTestId('matrix-paste-validate'));
+    expect(screen.getByTestId('matrix-paste-error').textContent).toMatch(/8 rows/);
+    expect(screen.queryByTestId('roster-a')).not.toBeInTheDocument();
+  });
+});
+
+describe('SetupScreen — Entered mode end-to-end', () => {
+  const VALID_PASTE = Array(8)
+    .fill(Array(8).fill('Y').join('\t'))
+    .join('\n');
+
+  it('clicking Start in Entered mode passes a viewAOverride matching the typed matrix', async () => {
+    const user = userEvent.setup();
+    const onStart = vi.fn();
+    render(<SetupScreen onStart={onStart} />);
+    await user.click(screen.getByLabelText(/Entered/i));
+
+    // Paste the matrix and validate.
+    const textarea = screen.getByTestId('matrix-paste-textarea');
+    await user.click(textarea);
+    await user.paste(VALID_PASTE);
+    await user.click(screen.getByTestId('matrix-paste-validate'));
+
+    // Pick all 16 factions across both teams.
+    for (const team of ['a', 'b'] as const) {
+      const rosterEl = screen.getByTestId(`roster-${team}`);
+      for (let i = 0; i < 8; i++) {
+        const slot = within(rosterEl).getByTestId(`team-${team}-slot-${i}`);
+        const select = within(slot).getByRole('combobox') as HTMLSelectElement;
+        // Pick i-th faction from the dropdown options (skip the empty
+        // option at index 0).
+        const opts = Array.from(select.options).filter((o) => o.value !== '');
+        await user.selectOptions(select, opts[i]!.value);
+      }
+    }
+
+    await user.click(screen.getByRole('button', { name: /Start/i }));
+    expect(onStart).toHaveBeenCalledTimes(1);
+    const config = onStart.mock.calls[0]![0] as {
+      matrixSource: string;
+      viewAOverride?: readonly (readonly { value: number }[])[];
+    };
+    expect(config.matrixSource).toBe('entered');
+    expect(config.viewAOverride).toBeDefined();
+    expect(config.viewAOverride!.length).toBe(8);
+    // Every cell of "Y" parses to 10.
+    for (const row of config.viewAOverride!) {
+      expect(row.length).toBe(8);
+      for (const cell of row) expect(cell.value).toBe(10);
+    }
   });
 });
 

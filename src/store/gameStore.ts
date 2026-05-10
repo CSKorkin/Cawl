@@ -249,6 +249,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         seed: config.seed,
         rosterA: config.rosterA,
         rosterB: config.rosterB,
+        ...(config.viewAOverride !== undefined ? { viewAOverride: config.viewAOverride } : {}),
       });
       const humanSeat = humanSeatFor(config);
       const actorA = humanSeat === 'A' ? null : actorFor(config, 'A');

@@ -53,7 +53,7 @@ export function MatrixSourcePicker({ value, seed, onChange, onReroll }: MatrixSo
             onChange={() => onChange('entered')}
             className="accent-sky-500"
           />
-          <span>Entered <span className="text-xs text-slate-500">(8×8 grid — coming in Phase U5)</span></span>
+          <span>Entered <span className="text-xs text-slate-500">(paste from sheet or enter cell-by-cell)</span></span>
         </label>
       </div>
     </fieldset>
