@@ -67,9 +67,9 @@ describe('PlayScreen — renders viewer\'s view with engine state', () => {
     const state = useGameStore.getState().state!;
     const view = viewFor(state, 'A');
     // Spot-check a few cells against the viewer's matrix.
-    expect(screen.getByTestId('cell-0-0').textContent).toBe(String(view.myView[0]![0]!.value));
-    expect(screen.getByTestId('cell-3-5').textContent).toBe(String(view.myView[3]![5]!.value));
-    expect(screen.getByTestId('cell-7-7').textContent).toBe(String(view.myView[7]![7]!.value));
+    expect(screen.getByTestId('cell-0-0-score').textContent).toBe(String(view.myView[0]![0]!.value));
+    expect(screen.getByTestId('cell-3-5-score').textContent).toBe(String(view.myView[3]![5]!.value));
+    expect(screen.getByTestId('cell-7-7-score').textContent).toBe(String(view.myView[7]![7]!.value));
   });
 });
 

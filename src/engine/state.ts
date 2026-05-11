@@ -6,8 +6,9 @@
 // from outside the engine — it strips the opposing team's pending slots.
 
 import { generateMatrix, generateMatrixFromViewA } from './matrix.js';
-import type { Matrix } from './matrix.js';
-import type { Score, ScoreMode } from './score.js';
+import type { CellImpact, Matrix } from './matrix.js';
+import { tableModifierDelta } from './score.js';
+import type { Score, ScoreMode, TableModifier } from './score.js';
 import { pick, seed as mkSeed } from './rng.js';
 import type { RngState } from './rng.js';
 import type { ArmyId, LogEntry, Round, TableId, Team } from './log.js';
@@ -55,10 +56,13 @@ export interface Pairing {
   // there is no defender.
   readonly defenderTeam: Team | null;
   readonly tableId?: TableId;
-  // Score adjustment from the table-choice hook. Set together with `tableId`;
-  // currently always 0 (the spec defines tables as scheduling slots only) but
-  // wired through so future score-impacting table logic has an attachment
-  // point without needing to thread a new field through later.
+  // Score adjustment from the chosen table, recorded at LOCK_IN_TABLE time
+  // from the *defender team's* perspective (Team A's by convention for
+  // auto-paired scrum games). Standard: ±3 / ±6 (raw point delta). Atlas:
+  // ±1 / ±2 (ordinal step delta — apply via the ATLAS_TIERS index walk).
+  // 0 when no modifier applies. Display code that needs each team's
+  // perspective should look up matrix.impactA / impactB directly — the
+  // symbolic inverse means each team's number is different.
   readonly tableScoreModifier?: number;
 }
 
@@ -125,6 +129,11 @@ export interface InitialStateConfig {
   // inversion + variance off the seed RNG (same statistical properties
   // as the Generated path, just with the user's chosen anchor).
   readonly viewAOverride?: readonly (readonly Score[])[];
+  // Optional: a pre-built impactA tensor (Entered matrix flow + table-
+  // impact modal). Only consulted when `viewAOverride` is also set —
+  // matrices generated from a seed get their impacts from the same seed
+  // (forked path; see matrix.ts). When absent, defaults to all-null.
+  readonly impactAOverride?: readonly (readonly CellImpact[])[];
 }
 
 const ROSTER_SIZE = 8;
@@ -142,7 +151,12 @@ export function createInitialState(config: InitialStateConfig): PairingState {
   }
   const initialRng = mkSeed(config.seed);
   const { rng, matrix } = config.viewAOverride !== undefined
-    ? generateMatrixFromViewA(initialRng, config.mode, config.viewAOverride)
+    ? generateMatrixFromViewA(
+        initialRng,
+        config.mode,
+        config.viewAOverride,
+        config.impactAOverride,
+      )
     : generateMatrix(initialRng, config.mode);
   return {
     phase: 'ROUND_1.AWAITING_DEFENDERS',
@@ -168,6 +182,12 @@ export interface TeamView {
   readonly mode: ScoreMode;
   // Only this seat's view of the matrix; the opposing team's view is omitted.
   readonly myView: readonly (readonly Score[])[];
+  // This seat's view of the per-cell, per-table impact tensor — impactA when
+  // seat==='A', impactB when seat==='B'. Indexed [myRosterIdx][oppRosterIdx]
+  // [tableId-1]. Same access pattern as `myView`. Visible to the seat in the
+  // UI (impact glyphs on the matrix), so it does not violate information-
+  // hiding — both teams see their own impacts the entire game.
+  readonly myImpact: readonly (readonly CellImpact[])[];
   readonly myRoster: readonly ArmyId[];
   readonly oppRoster: readonly ArmyId[];
   readonly myPool: readonly ArmyId[];
@@ -205,11 +225,13 @@ function projectStep(step: StepState, seat: Team): StepState {
 
 export function viewFor(state: PairingState, seat: Team): TeamView {
   const myView = seat === 'A' ? state.matrix.viewA : state.matrix.viewB;
+  const myImpact = seat === 'A' ? state.matrix.impactA : state.matrix.impactB;
   return {
     seat,
     phase: state.phase,
     mode: state.mode,
     myView,
+    myImpact,
     myRoster: seat === 'A' ? state.rosterA : state.rosterB,
     oppRoster: seat === 'A' ? state.rosterB : state.rosterA,
     myPool: seat === 'A' ? state.poolA : state.poolB,
@@ -507,19 +529,35 @@ function applyResolveInitialToken(
 
 // ── Table-choice score hook ───────────────────────────────────────────────────
 
-// Future hook: tables may shift the expected score for a matchup based on
-// layout, faction, mission, etc. The current spec defines tables as
-// scheduling slots only — no score effect — so this returns 0. Wired into
-// LOCK_IN_TABLE so the data path is in place for future spec versions.
+// Look up the modifier the chosen table contributes to a pairing's score
+// from the *defender team's* perspective, returning the unclamped numeric
+// delta (standard: ±3/±6, atlas: ±1/±2 step count). Stored on the Pairing
+// as `tableScoreModifier` so the rest of the engine has the cached value
+// without reaching back into the matrix; display code that needs each
+// team's perspective should still consult `matrix.impactA` / `impactB`
+// directly (the symbolic inverse means each team sees a different number).
+//
+// Auto-paired scrum games (`defenderTeam === null`) have no defender, so
+// we use Team A's view by convention. This is deterministic regardless of
+// token state and keeps the cached field unambiguous; consumers needing
+// each team's modifier compute from impactA / impactB at display time.
+// (Open question deferred from /plan: should this instead use the
+// token-holder's view? See tasks/plan.md → Open questions.)
 function tableChoiceScoreModifier(
+  state: PairingState,
   pairing: Pairing,
   tableId: TableId,
-  matrix: Matrix,
 ): number {
-  void pairing;
-  void tableId;
-  void matrix;
-  return 0;
+  const team: Team = pairing.defenderTeam ?? 'A';
+  const aIdx = state.rosterA.indexOf(pairing.aArmy);
+  const bIdx = state.rosterB.indexOf(pairing.bArmy);
+  if (aIdx < 0 || bIdx < 0) return 0;
+  const slot = tableId - 1;
+  const symbol: TableModifier | null = team === 'A'
+    ? (state.matrix.impactA[aIdx]?.[bIdx]?.[slot] ?? null)
+    : (state.matrix.impactB[bIdx]?.[aIdx]?.[slot] ?? null);
+  if (symbol === null) return 0;
+  return tableModifierDelta(symbol, state.matrix.mode);
 }
 
 // ── LOCK_IN_TABLE ─────────────────────────────────────────────────────────────
@@ -586,7 +624,7 @@ function applyLockInTable(
   // round, and the OutOfTurn check above ensures we're picking it now.
   const target = state.pairings[targetIdx]!;
 
-  const tableScoreModifier = tableChoiceScoreModifier(target, action.tableId, state.matrix);
+  const tableScoreModifier = tableChoiceScoreModifier(state, target, action.tableId);
   const updatedTarget: Pairing = {
     ...target,
     tableId: action.tableId,
@@ -781,7 +819,7 @@ function phaseATableScrum(state: PairingState, action: LockInTableAction): Actio
       && p.tableId === undefined,
   );
   const target = state.pairings[targetIdx]!;
-  const tableScoreModifier = tableChoiceScoreModifier(target, action.tableId, state.matrix);
+  const tableScoreModifier = tableChoiceScoreModifier(state, target, action.tableId);
   const updated: Pairing = { ...target, tableId: action.tableId, tableScoreModifier };
   const updatedPairings = state.pairings.map((p, i) => (i === targetIdx ? updated : p));
   const defenderArmy = action.team === 'A' ? target.aArmy : target.bArmy;
@@ -814,7 +852,7 @@ function phaseBTableScrum(state: PairingState, action: LockInTableAction): Actio
       && p.tableId === undefined,
   );
   const target = state.pairings[targetIdx]!;
-  const tableScoreModifier = tableChoiceScoreModifier(target, action.tableId, state.matrix);
+  const tableScoreModifier = tableChoiceScoreModifier(state, target, action.tableId);
   const updated: Pairing = { ...target, tableId: action.tableId, tableScoreModifier };
   const updatedPairings = state.pairings.map((p, i) => (i === targetIdx ? updated : p));
   // Phase B has no defender to record; defenderArmy omitted.

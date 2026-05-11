@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { ScoreMode } from '../../engine/score.js';
 import { ATLAS_TIERS } from '../../engine/score.js';
+import type { FactionId } from '../../factions.js';
+import { findFaction } from '../../factions.js';
 
 interface MatrixGridEntryProps {
   readonly scoring: ScoreMode;
@@ -8,6 +10,12 @@ interface MatrixGridEntryProps {
   // empty / invalid. Standard cells are integers in [0, 20]; atlas cells
   // are values from ATLAS_TIERS (1, 2, 2.5, 3, 3.5, 4, 5).
   readonly onMatrixChange: (matrix: readonly (readonly number[])[] | null) => void;
+  // Optional roster context — when provided (and a slot is filled), the
+  // grid swaps the abstract A1/B1 placeholders for that faction's logo +
+  // name so the user knows which matchup they're scoring. Per-slot
+  // fallback to placeholders when an entry is null.
+  readonly rosterA?: ReadonlyArray<FactionId | null>;
+  readonly rosterB?: ReadonlyArray<FactionId | null>;
 }
 
 const SIZE = 8;
@@ -32,7 +40,7 @@ function validateCell(scoring: ScoreMode, raw: string | null): { ok: true; value
   return { ok: true, value: n };
 }
 
-export function MatrixGridEntry({ scoring, onMatrixChange }: MatrixGridEntryProps) {
+export function MatrixGridEntry({ scoring, onMatrixChange, rosterA, rosterB }: MatrixGridEntryProps) {
   const [cells, setCells] = useState<(string | null)[][]>(() => emptyGrid());
 
   // Reset whenever scoring mode changes — the value space is incompatible.
@@ -73,14 +81,18 @@ export function MatrixGridEntry({ scoring, onMatrixChange }: MatrixGridEntryProp
           <tr>
             <th />
             {Array.from({ length: SIZE }, (_, j) => (
-              <th key={j} className="text-xs text-slate-500">B{j + 1}</th>
+              <th key={j} className="px-1 text-xs text-slate-400">
+                <HeaderCell team="B" index={j} factionId={rosterB?.[j] ?? null} />
+              </th>
             ))}
           </tr>
         </thead>
         <tbody>
           {cells.map((row, i) => (
             <tr key={i}>
-              <th className="text-xs text-slate-500">A{i + 1}</th>
+              <th className="px-1 text-xs text-slate-400">
+                <HeaderCell team="A" index={i} factionId={rosterA?.[i] ?? null} />
+              </th>
               {row.map((value, j) => {
                 const valid = validateCell(scoring, value).ok;
                 const empty = value === null || value.trim().length === 0;
@@ -124,4 +136,26 @@ export function MatrixGridEntry({ scoring, onMatrixChange }: MatrixGridEntryProp
       </table>
     </div>
   );
+}
+
+// Header cell for the grid's row/col labels. When a faction is supplied,
+// renders its 28×28 logo + a short name. Otherwise falls back to the
+// "A1"/"B3" placeholder so a partly-filled roster still has every label.
+function HeaderCell({ team, index, factionId }: {
+  readonly team: 'A' | 'B';
+  readonly index: number;
+  readonly factionId: FactionId | null;
+}) {
+  const faction = factionId !== null ? findFaction(factionId) : undefined;
+  if (faction !== undefined) {
+    return (
+      <span className="flex flex-col items-center gap-1" title={faction.displayName}>
+        <img src={faction.logoPath} alt="" className="h-7 w-7 object-contain" />
+        <span className="line-clamp-1 max-w-[5rem] text-[10px] font-normal">
+          {faction.displayName}
+        </span>
+      </span>
+    );
+  }
+  return <span>{team}{index + 1}</span>;
 }

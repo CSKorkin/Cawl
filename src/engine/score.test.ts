@@ -1,13 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import {
   ATLAS_TIERS,
+  applyTableModifier,
   applyVariance,
   colorBand,
   compare,
   generate,
   invert,
+  invertModifier,
+  tableModifierDelta,
 } from './score.js';
-import type { AtlasTier, Score } from './score.js';
+import type { AtlasTier, Score, TableModifier } from './score.js';
 import { seed } from './rng.js';
 
 describe('score.compare', () => {
@@ -295,5 +298,167 @@ describe('score.generate', () => {
       if (r.value.mode === 'atlas') draws.push(r.value.value);
     }
     expect(draws).toEqual([2, 1, 2, 3, 3]);
+  });
+});
+
+// ── invertModifier ───────────────────────────────────────────────────────────
+//
+// Symbolic inversion of a per-table modifier. WTC matchups split a fixed
+// total, so a friendly-favoring impact ('+', '++') for one team is a hostile
+// impact ('-', '--') from the other team's perspective. The mapping is
+// pairwise: '+' ↔ '-' and '++' ↔ '--'. Numeric values never come into it —
+// the score-side inversion already handles the matchup share split.
+
+describe('score.invertModifier', () => {
+  it.each([
+    ['+',  '-'],
+    ['-',  '+'],
+    ['++', '--'],
+    ['--', '++'],
+  ] as const)('inverts %s → %s', (input, expected) => {
+    expect(invertModifier(input)).toBe(expected);
+  });
+
+  it('is an involution — invertModifier(invertModifier(m)) === m', () => {
+    const all: readonly TableModifier[] = ['+', '++', '-', '--'];
+    for (const m of all) {
+      expect(invertModifier(invertModifier(m))).toBe(m);
+    }
+  });
+});
+
+// ── tableModifierDelta ───────────────────────────────────────────────────────
+//
+// Returns the unclamped signed delta for a modifier symbol in the given
+// scoring mode. Used by `tableChoiceScoreModifier` (in state.ts) to record a
+// numeric form of the modifier on each Pairing when LOCK_IN_TABLE fires.
+
+describe('score.tableModifierDelta (standard)', () => {
+  it.each([
+    ['+',   3],
+    ['++',  6],
+    ['-',  -3],
+    ['--', -6],
+  ] as const)('symbol %s → %i', (mod, expected) => {
+    expect(tableModifierDelta(mod, 'standard')).toBe(expected);
+  });
+});
+
+describe('score.tableModifierDelta (atlas)', () => {
+  it.each([
+    ['+',   1],
+    ['++',  2],
+    ['-',  -1],
+    ['--', -2],
+  ] as const)('symbol %s → %i', (mod, expected) => {
+    expect(tableModifierDelta(mod, 'atlas')).toBe(expected);
+  });
+});
+
+// ── applyTableModifier (standard) ────────────────────────────────────────────
+//
+// Standard: '+' = +3, '++' = +6, '-' = -3, '--' = -6, clamped to [0, 20].
+
+describe('score.applyTableModifier (standard)', () => {
+  it.each([
+    [10, '+',  13],
+    [10, '++', 16],
+    [10, '-',   7],
+    [10, '--',  4],
+    [ 0, '+',   3],
+    [20, '-',  17],
+  ] as const)('value %i with %s → %i', (input, mod, expected) => {
+    expect(applyTableModifier({ mode: 'standard', value: input }, mod))
+      .toEqual({ mode: 'standard', value: expected });
+  });
+
+  it('clamps at the low end on negative modifiers', () => {
+    expect(applyTableModifier({ mode: 'standard', value: 2 }, '-'))
+      .toEqual({ mode: 'standard', value: 0 });
+    expect(applyTableModifier({ mode: 'standard', value: 5 }, '--'))
+      .toEqual({ mode: 'standard', value: 0 });
+    expect(applyTableModifier({ mode: 'standard', value: 0 }, '--'))
+      .toEqual({ mode: 'standard', value: 0 });
+  });
+
+  it('clamps at the high end on positive modifiers', () => {
+    expect(applyTableModifier({ mode: 'standard', value: 18 }, '+'))
+      .toEqual({ mode: 'standard', value: 20 });
+    expect(applyTableModifier({ mode: 'standard', value: 15 }, '++'))
+      .toEqual({ mode: 'standard', value: 20 });
+    expect(applyTableModifier({ mode: 'standard', value: 20 }, '++'))
+      .toEqual({ mode: 'standard', value: 20 });
+  });
+});
+
+// ── applyTableModifier (atlas) ───────────────────────────────────────────────
+//
+// Atlas: '+' / '++' / '-' / '--' = +1 / +2 / -1 / -2 ordinal steps on
+// ATLAS_TIERS, clamped at the ends. "One step" means the adjacent tier
+// regardless of numeric distance — same convention as applyVariance.
+
+describe('score.applyTableModifier (atlas)', () => {
+  it.each([
+    [3,   '+',  3.5],
+    [3,   '++', 4],
+    [3,   '-',  2.5],
+    [3,   '--', 2],
+    [2.5, '+',  3],
+    [2.5, '-',  2],
+    [3.5, '+',  4],
+    [3.5, '-',  3],
+  ] as const)('tier %f with %s → tier %f', (input, mod, expected) => {
+    expect(applyTableModifier(
+      { mode: 'atlas', value: input as AtlasTier },
+      mod,
+    )).toEqual({ mode: 'atlas', value: expected as AtlasTier });
+  });
+
+  it('clamps at the low end of the tier set', () => {
+    expect(applyTableModifier({ mode: 'atlas', value: 1 }, '-'))
+      .toEqual({ mode: 'atlas', value: 1 });
+    expect(applyTableModifier({ mode: 'atlas', value: 1 }, '--'))
+      .toEqual({ mode: 'atlas', value: 1 });
+    expect(applyTableModifier({ mode: 'atlas', value: 2 }, '--'))
+      .toEqual({ mode: 'atlas', value: 1 });
+  });
+
+  it('clamps at the high end of the tier set', () => {
+    expect(applyTableModifier({ mode: 'atlas', value: 5 }, '+'))
+      .toEqual({ mode: 'atlas', value: 5 });
+    expect(applyTableModifier({ mode: 'atlas', value: 5 }, '++'))
+      .toEqual({ mode: 'atlas', value: 5 });
+    expect(applyTableModifier({ mode: 'atlas', value: 4 }, '++'))
+      .toEqual({ mode: 'atlas', value: 5 });
+  });
+
+  it('moves exactly one ordinal step for + / -', () => {
+    for (let i = 0; i < ATLAS_TIERS.length; i++) {
+      const tier = ATLAS_TIERS[i]!;
+      const plus = applyTableModifier({ mode: 'atlas', value: tier }, '+');
+      const minus = applyTableModifier({ mode: 'atlas', value: tier }, '-');
+      if (plus.mode !== 'atlas' || minus.mode !== 'atlas') {
+        throw new Error('mode mismatch');
+      }
+      const expectedPlusIdx = Math.min(i + 1, ATLAS_TIERS.length - 1);
+      const expectedMinusIdx = Math.max(i - 1, 0);
+      expect(plus.value).toBe(ATLAS_TIERS[expectedPlusIdx]);
+      expect(minus.value).toBe(ATLAS_TIERS[expectedMinusIdx]);
+    }
+  });
+
+  it('moves exactly two ordinal steps for ++ / --', () => {
+    for (let i = 0; i < ATLAS_TIERS.length; i++) {
+      const tier = ATLAS_TIERS[i]!;
+      const plusplus = applyTableModifier({ mode: 'atlas', value: tier }, '++');
+      const minusminus = applyTableModifier({ mode: 'atlas', value: tier }, '--');
+      if (plusplus.mode !== 'atlas' || minusminus.mode !== 'atlas') {
+        throw new Error('mode mismatch');
+      }
+      const expectedPlusIdx = Math.min(i + 2, ATLAS_TIERS.length - 1);
+      const expectedMinusIdx = Math.max(i - 2, 0);
+      expect(plusplus.value).toBe(ATLAS_TIERS[expectedPlusIdx]);
+      expect(minusminus.value).toBe(ATLAS_TIERS[expectedMinusIdx]);
+    }
   });
 });

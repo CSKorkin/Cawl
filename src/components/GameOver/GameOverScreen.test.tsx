@@ -124,6 +124,128 @@ describe('GameOverScreen — final slate', () => {
     expect(Number(screen.getByTestId('slate-total-a').textContent)).toBe(sumA);
     expect(Number(screen.getByTestId('slate-total-b').textContent)).toBe(sumB);
   });
+
+  // ── T9: per-row scores include the table modifier; totals reflect that. ──
+
+  it('renders the modifier annotation when the chosen table carries a non-null symbol (plan example: "19 (+3 T5)")', () => {
+    // Use the synthetic-injection path: complete a normal game, then
+    // overwrite impactA so a known pairing's chosen table has a `+` (=
+    // +3 in standard mode). Re-render FinalSlate directly against the
+    // mutated state. This avoids depending on which seeded impacts land
+    // on the AI's lowest-id table picks.
+    const finalState = completedGame(spEasyConfig(0xc4f1));
+    // Pick a pairing with a known A-base in a range where `+3` doesn't
+    // clamp (any base ≤ 17 works). Find the first such pairing in table
+    // order, force `+` on impactA at its chosen table, and `-` on impactB
+    // at the same slot (symbolic inverse).
+    const targetIdx = finalState.pairings.findIndex(p => {
+      const aIdx = finalState.rosterA.indexOf(p.aArmy);
+      const bIdx = finalState.rosterB.indexOf(p.bArmy);
+      const base = finalState.matrix.viewA[aIdx]![bIdx]!.value as number;
+      return p.tableId !== undefined && base <= 17;
+    });
+    expect(targetIdx).toBeGreaterThanOrEqual(0);
+    const target = finalState.pairings[targetIdx]!;
+    const aIdx = finalState.rosterA.indexOf(target.aArmy);
+    const bIdx = finalState.rosterB.indexOf(target.bArmy);
+    const slot = target.tableId! - 1;
+    const baseA = finalState.matrix.viewA[aIdx]![bIdx]!.value as number;
+
+    // Clone the matrix tensors with the override on the target cell.
+    const newImpactA = finalState.matrix.impactA.map((row, i) =>
+      row.map((cell, j) =>
+        cell.map((sym, t) => (i === aIdx && j === bIdx && t === slot ? '+' : sym)),
+      ),
+    );
+    const newImpactB = finalState.matrix.impactB.map((row, j) =>
+      row.map((cell, i) =>
+        cell.map((sym, t) => (j === bIdx && i === aIdx && t === slot ? '-' : sym)),
+      ),
+    );
+    const patched: typeof finalState = {
+      ...finalState,
+      matrix: { ...finalState.matrix, impactA: newImpactA, impactB: newImpactB },
+    };
+    useGameStore.setState({ state: patched });
+
+    render(<App />);
+
+    // The target row shows the modified score (base + 3) prominently and a
+    // small annotation chip "(+3 T#)" with data-modifier="+".
+    const scoreSpan = screen.getByTestId(`slate-row-t${target.tableId}-a-score`);
+    expect(Number(scoreSpan.textContent)).toBe(baseA + 3);
+    const aMod = screen.getByTestId(`slate-row-t${target.tableId}-a-mod`);
+    expect(aMod.getAttribute('data-modifier')).toBe('+');
+    expect(aMod.textContent).toBe(`(+3 T${target.tableId})`);
+    expect(aMod.className).toMatch(/emerald-300/);
+
+    // B's view on the same matchup is the symbolic-inverse `-` → −3.
+    const bMod = screen.getByTestId(`slate-row-t${target.tableId}-b-mod`);
+    expect(bMod.getAttribute('data-modifier')).toBe('-');
+    expect(bMod.textContent).toBe(`(-3 T${target.tableId})`);
+  });
+
+  it('totals include the clamped table-modifier delta from each team\'s own view (T6 corpus bug fixed)', () => {
+    // The per-row score testids now show the MODIFIED contribution (base +
+    // clamped delta), so summing them must equal the totals row. This
+    // closes the gap that existed before T9, where the totals were
+    // base-only and the AI win-rate corpus had to compute modified totals
+    // separately. Exercises both teams' columns.
+    const finalState = completedGame(spEasyConfig(0xc4f1));
+    render(<App />);
+
+    // Compute the expected modified totals directly from the engine state
+    // (each team reads its own impactA / impactB; symbolic-inverse means
+    // A's and B's deltas usually differ for the same matchup).
+    function expectedTotal(team: 'A' | 'B'): number {
+      let total = 0;
+      for (const p of finalState.pairings) {
+        if (p.tableId === undefined) continue;
+        const aIdx = finalState.rosterA.indexOf(p.aArmy);
+        const bIdx = finalState.rosterB.indexOf(p.bArmy);
+        const baseCell = team === 'A'
+          ? finalState.matrix.viewA[aIdx]![bIdx]!
+          : finalState.matrix.viewB[bIdx]![aIdx]!;
+        const baseVal = baseCell.value as number;
+        const slot = p.tableId - 1;
+        const sym = team === 'A'
+          ? finalState.matrix.impactA[aIdx]?.[bIdx]?.[slot] ?? null
+          : finalState.matrix.impactB[bIdx]?.[aIdx]?.[slot] ?? null;
+        if (sym === null) {
+          total += baseVal;
+          continue;
+        }
+        // Clamped path matches FinalSlate's applyTableModifier usage.
+        const delta = team === 'A'
+          ? (sym === '+' ? Math.min(20 - baseVal, 3)
+            : sym === '++' ? Math.min(20 - baseVal, 6)
+            : sym === '-' ? Math.max(-baseVal, -3)
+            : Math.max(-baseVal, -6))
+          : (sym === '+' ? Math.min(20 - baseVal, 3)
+            : sym === '++' ? Math.min(20 - baseVal, 6)
+            : sym === '-' ? Math.max(-baseVal, -3)
+            : Math.max(-baseVal, -6));
+        total += baseVal + delta;
+      }
+      return total;
+    }
+
+    const renderedTotalA = Number(screen.getByTestId('slate-total-a').textContent);
+    const renderedTotalB = Number(screen.getByTestId('slate-total-b').textContent);
+    expect(renderedTotalA).toBe(expectedTotal('A'));
+    expect(renderedTotalB).toBe(expectedTotal('B'));
+
+    // And the per-row sums still equal the totals (this was the existing
+    // invariant; it must continue to hold after the testid moved to the
+    // inner `<span>{aFinal}</span>` element).
+    let sumA = 0, sumB = 0;
+    for (let t = 1; t <= 8; t++) {
+      sumA += Number(screen.getByTestId(`slate-row-t${t}-a-score`).textContent);
+      sumB += Number(screen.getByTestId(`slate-row-t${t}-b-score`).textContent);
+    }
+    expect(renderedTotalA).toBe(sumA);
+    expect(renderedTotalB).toBe(sumB);
+  });
 });
 
 describe('GameOverScreen — actions', () => {

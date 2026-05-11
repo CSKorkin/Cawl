@@ -4,6 +4,7 @@ import { ScoringPicker } from './ScoringPicker.js';
 import { MatrixSourcePicker } from './MatrixSourcePicker.js';
 import { RosterPicker } from './RosterPicker.js';
 import { MatrixEntry } from './MatrixEntry.js';
+import type { EntryMethod } from './MatrixEntry.js';
 import type { GameConfig, GameMode, MatrixSource } from './types.js';
 import type { Score, ScoreMode, AtlasTier } from '../../engine/score.js';
 import type { FactionId } from '../../factions.js';
@@ -88,6 +89,20 @@ export function SetupScreen({ onStart, initialConfig }: SetupScreenProps) {
     (m: readonly (readonly number[])[] | null) => setEnteredMatrix(m),
     [],
   );
+  // Entered mode only: how the user enters the matrix. Default is grid
+  // (cell-by-cell) — paste is the secondary path. SetupScreen owns this
+  // because it controls page ordering: grid mode shows rosters BEFORE
+  // the grid (so we can label rows/cols with faction logos), paste mode
+  // shows the textarea before rosters.
+  const [entryMethod, setEntryMethod] = useState<EntryMethod>('grid');
+  const handleEntryMethodChange = useCallback(
+    (next: EntryMethod) => {
+      setEntryMethod(next);
+      // Switching method invalidates any partially-entered matrix.
+      setEnteredMatrix(null);
+    },
+    [],
+  );
 
   function handleSourceChange(next: MatrixSource): void {
     setMatrixSource(next);
@@ -121,8 +136,13 @@ export function SetupScreen({ onStart, initialConfig }: SetupScreenProps) {
   const canStart = rostersReady && matrixReady;
 
   let disabledReason: string | null = null;
-  if (isEntered && enteredMatrix === null) disabledReason = 'Enter and validate the matrix first';
-  else if (!rostersReady) disabledReason = 'Pick all 16 factions';
+  if (isEntered && entryMethod === 'grid' && !rostersReady) {
+    disabledReason = 'Pick all 16 factions, then enter the matrix';
+  } else if (isEntered && enteredMatrix === null) {
+    disabledReason = 'Enter and validate the matrix first';
+  } else if (!rostersReady) {
+    disabledReason = 'Pick all 16 factions';
+  }
 
   function handleStart(): void {
     if (!canStart) return;
@@ -165,16 +185,63 @@ export function SetupScreen({ onStart, initialConfig }: SetupScreenProps) {
         />
       </section>
 
-      {isEntered && (
-        <MatrixEntry scoring={scoring} onMatrixChange={handleMatrixChange} />
-      )}
-
-      {(!isEntered || enteredMatrix !== null) && (
-        <section className="grid grid-cols-1 gap-8 md:grid-cols-2">
-          <RosterPicker team="A" value={rosterA} onChange={setRosterA} editable={isEntered} />
-          <RosterPicker team="B" value={rosterB} onChange={setRosterB} editable={isEntered} />
-        </section>
-      )}
+      {(() => {
+        // Generated: rosters are auto-populated and always visible.
+        if (!isEntered) {
+          return (
+            <section className="grid grid-cols-1 gap-8 md:grid-cols-2">
+              <RosterPicker team="A" value={rosterA} onChange={setRosterA} editable={false} />
+              <RosterPicker team="B" value={rosterB} onChange={setRosterB} editable={false} />
+            </section>
+          );
+        }
+        // Entered + grid: pick rosters first, then the grid (which uses
+        // those factions as row/col labels). Hide the grid until rosters
+        // are fully picked so the user can't score abstract A1/B1 slots.
+        if (entryMethod === 'grid') {
+          return (
+            <>
+              <section className="grid grid-cols-1 gap-8 md:grid-cols-2">
+                <RosterPicker team="A" value={rosterA} onChange={setRosterA} editable />
+                <RosterPicker team="B" value={rosterB} onChange={setRosterB} editable />
+              </section>
+              <MatrixEntry
+                scoring={scoring}
+                method={entryMethod}
+                onMethodChange={handleEntryMethodChange}
+                rosterA={rosterA}
+                rosterB={rosterB}
+                onMatrixChange={handleMatrixChange}
+              />
+              {!rostersReady && (
+                <p className="text-xs text-slate-500" data-testid="grid-blocked-hint">
+                  Pick both rosters above before entering matrix scores.
+                </p>
+              )}
+            </>
+          );
+        }
+        // Entered + paste: paste matrix first, rosters appear after
+        // validation (preserves the existing paste-flow ordering).
+        return (
+          <>
+            <MatrixEntry
+              scoring={scoring}
+              method={entryMethod}
+              onMethodChange={handleEntryMethodChange}
+              rosterA={rosterA}
+              rosterB={rosterB}
+              onMatrixChange={handleMatrixChange}
+            />
+            {enteredMatrix !== null && (
+              <section className="grid grid-cols-1 gap-8 md:grid-cols-2">
+                <RosterPicker team="A" value={rosterA} onChange={setRosterA} editable />
+                <RosterPicker team="B" value={rosterB} onChange={setRosterB} editable />
+              </section>
+            )}
+          </>
+        );
+      })()}
 
       <footer className="flex items-center justify-end gap-4 border-t border-slate-800 pt-4">
         {disabledReason !== null && (

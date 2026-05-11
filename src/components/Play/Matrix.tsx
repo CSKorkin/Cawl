@@ -1,6 +1,7 @@
 import type { TeamView } from '../../engine/state.js';
-import type { Score } from '../../engine/score.js';
-import { colorBand } from '../../engine/score.js';
+import type { CellImpact } from '../../engine/matrix.js';
+import type { Score, TableModifier } from '../../engine/score.js';
+import { colorBand, tableModifierDelta } from '../../engine/score.js';
 import { findFaction } from '../../factions.js';
 
 interface MatrixProps {
@@ -17,9 +18,45 @@ const BAND_BG: Record<string, string> = {
   darkGreen:  'bg-green-800/70 text-green-100',
 };
 
+// Per-modifier chip styling. `+`/`++` lift the matchup → green tints; `-`/`--`
+// drop it → red tints. The `++`/`--` chips use a slightly bolder background
+// so the second tier of intensity reads at a glance, mirroring the colorBand
+// scheme on the main score cells. Mid-grey is reserved for null (no chip).
+const CHIP_BG: Record<TableModifier, string> = {
+  '+':  'bg-emerald-700/80 text-emerald-50',
+  '++': 'bg-green-600/90 text-green-50',
+  '-':  'bg-orange-700/80 text-orange-50',
+  '--': 'bg-red-700/90 text-red-50',
+};
+
 function cellClass(score: Score): string {
   const band = colorBand(score);
   return BAND_BG[band] ?? 'bg-slate-800 text-slate-200';
+}
+
+// Build a "T2: + (+3) | T5: ++ (+6)" string for the cell's hover tooltip.
+// Step-delta wording (atlas) vs raw-point delta (standard) flows through
+// tableModifierDelta. Returns '' when the cell has no non-null modifiers,
+// so callers can skip the `title` attribute entirely.
+function impactTooltip(impact: CellImpact, mode: 'standard' | 'atlas'): string {
+  const parts: string[] = [];
+  for (let t = 0; t < impact.length; t++) {
+    const sym = impact[t];
+    if (sym === undefined || sym === null) continue;
+    const delta = tableModifierDelta(sym, mode);
+    const sign = delta > 0 ? '+' : '';
+    const unit = mode === 'atlas'
+      ? (Math.abs(delta) === 1 ? ' step' : ' steps')
+      : '';
+    parts.push(`T${t + 1}: ${sym} (${sign}${delta}${unit})`);
+  }
+  return parts.join(' | ');
+}
+
+function hasAnyImpact(impact: CellImpact | undefined): boolean {
+  if (impact === undefined) return false;
+  for (const sym of impact) if (sym !== null) return true;
+  return false;
 }
 
 function meanScore(values: readonly number[]): number {
@@ -96,7 +133,7 @@ export function Matrix({ view }: MatrixProps) {
 
   return (
     <div className="mx-auto inline-block overflow-x-auto" data-testid="matrix">
-      <table className="border-separate border-spacing-1 text-center text-sm">
+      <table className="border-separate border-spacing-1.5 text-center text-base">
         <thead>
           <tr>
             <th className="text-xs text-slate-500"></th>
@@ -123,19 +160,32 @@ export function Matrix({ view }: MatrixProps) {
                 // render in italic so they stand out from the integer
                 // tiers at a glance.
                 const isHalfTier = score.mode === 'atlas' && !Number.isInteger(score.value);
-                const halfClass = isHalfTier ? 'italic text-sm' : '';
+                const halfClass = isHalfTier ? 'italic text-base' : '';
+                const impact = view.myImpact[i]?.[j];
+                const showImpacts = hasAnyImpact(impact);
+                const tooltip = showImpacts && impact !== undefined
+                  ? impactTooltip(impact, view.mode)
+                  : undefined;
                 return (
                   <td
                     key={colId}
-                    className={`h-9 w-10 rounded font-mono ${cellClass(score)} ${halfClass}`}
+                    className={`relative h-16 w-[4.5rem] rounded font-mono ${cellClass(score)} ${halfClass}`}
                     data-testid={`cell-${i}-${j}`}
+                    {...(tooltip !== undefined ? { title: tooltip } : {})}
                   >
-                    {score.value}
+                    <span data-testid={`cell-${i}-${j}-score`}>{score.value}</span>
+                    {showImpacts && impact !== undefined && (
+                      <ImpactChipRow
+                        rowIdx={i}
+                        colIdx={j}
+                        impact={impact}
+                      />
+                    )}
                   </td>
                 );
               })}
               <td
-                className={`h-9 w-12 rounded font-mono ${meanCellClass(rowAvg(i), view.mode)}`}
+                className={`h-16 w-20 rounded font-mono ${meanCellClass(rowAvg(i), view.mode)}`}
                 data-testid={`row-avg-${i}`}
               >
                 {rowAvg(i).toFixed(1)}
@@ -147,7 +197,7 @@ export function Matrix({ view }: MatrixProps) {
             {visibleCols.map(({ id: colId, j }) => (
               <td
                 key={colId}
-                className={`h-9 w-10 rounded font-mono ${meanCellClass(colAvg(j), view.mode)}`}
+                className={`h-16 w-[4.5rem] rounded font-mono ${meanCellClass(colAvg(j), view.mode)}`}
                 data-testid={`col-avg-${j}`}
               >
                 {colAvg(j).toFixed(1)}
@@ -157,6 +207,43 @@ export function Matrix({ view }: MatrixProps) {
           </tr>
         </tbody>
       </table>
+    </div>
+  );
+}
+
+// Per-cell strip of table-modifier chips, absolutely positioned along the
+// bottom edge so the score remains centered. Renders at most one chip per
+// non-null table slot, in table order (T1..T8). Chips are intentionally
+// tiny — they're an at-a-glance "this cell cares which table" cue; the
+// per-table breakdown comes from the cell's `title` tooltip.
+function ImpactChipRow({
+  rowIdx,
+  colIdx,
+  impact,
+}: {
+  readonly rowIdx: number;
+  readonly colIdx: number;
+  readonly impact: CellImpact;
+}) {
+  return (
+    <div
+      className="pointer-events-none absolute inset-x-0.5 bottom-0.5 flex flex-wrap justify-center gap-px text-[8px] font-bold leading-none"
+      data-testid={`cell-${rowIdx}-${colIdx}-impacts`}
+    >
+      {impact.map((sym, t) => {
+        if (sym === null) return null;
+        return (
+          <span
+            key={t}
+            data-testid={`cell-${rowIdx}-${colIdx}-impact-${t}`}
+            data-table={t + 1}
+            data-modifier={sym}
+            className={`rounded px-[2px] py-[1px] ${CHIP_BG[sym]}`}
+          >
+            {`T${t + 1}${sym}`}
+          </span>
+        );
+      })}
     </div>
   );
 }
@@ -173,7 +260,7 @@ function FactionLogo({ armyId }: { readonly armyId: string }) {
     <img
       src={faction.logoPath}
       alt={faction.displayName}
-      className="mx-auto h-7 w-7 object-contain"
+      className="mx-auto h-12 w-12 object-contain"
     />
   );
 }

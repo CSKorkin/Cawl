@@ -22,6 +22,15 @@ export type ColorBand =
   | 'lightGreen'
   | 'darkGreen';
 
+// Per-table impact symbol. A matchup may carry one of these for any subset
+// of the 8 tables, shifting the matchup's expected score on that table:
+//   '+'  =  +3 in standard / +1 ordinal step in atlas
+//   '++' =  +6 in standard / +2 ordinal steps in atlas
+//   '-'  =  -3 in standard / -1 ordinal step in atlas
+//   '--' =  -6 in standard / -2 ordinal steps in atlas
+// All transforms clamp at the mode's bounds.
+export type TableModifier = '+' | '++' | '-' | '--';
+
 export interface GenerateParams {
   readonly mean?: number;
   readonly stdev?: number;
@@ -80,6 +89,79 @@ export function invert(s: Score): Score {
   // For atlas, 6 - t maps {1,2,2.5,3,3.5,4,5} onto itself: 1↔5, 2↔4,
   // 2.5↔3.5, 3↔3. The cast is safe by enumeration.
   return { mode: 'atlas', value: (6 - s.value) as AtlasTier };
+}
+
+// Symbolic inverse of a table modifier. Mirrors `invert` for scores: the
+// matchup's impact is experienced from opposite sides by the two teams, so
+// '+' for one team is '-' for the other and '++' is '--'. We never compute
+// this numerically — `invert` already handles the score-share split, so the
+// modifier just flips sign at the symbol level. Involution: invertModifier
+// composed with itself is the identity.
+export function invertModifier(mod: TableModifier): TableModifier {
+  switch (mod) {
+    case '+': return '-';
+    case '-': return '+';
+    case '++': return '--';
+    case '--': return '++';
+  }
+}
+
+const STANDARD_MODIFIER_DELTA: Record<TableModifier, number> = {
+  '+': 3,
+  '++': 6,
+  '-': -3,
+  '--': -6,
+};
+
+const ATLAS_MODIFIER_STEPS: Record<TableModifier, number> = {
+  '+': 1,
+  '++': 2,
+  '-': -1,
+  '--': -2,
+};
+
+// Return the signed delta value for a TableModifier in the given mode.
+// Standard: +3 / +6 / -3 / -6 (raw point delta). Atlas: +1 / +2 / -1 / -2
+// (ordinal step count — applied via the ATLAS_TIERS index walk). The
+// value is *unclamped*; near-edge scores will see truncated actual
+// effects when run through applyTableModifier. Useful for caching the
+// "nominal" modifier on a Pairing without committing to a specific score
+// at lookup time.
+export function tableModifierDelta(mod: TableModifier, mode: ScoreMode): number {
+  if (mode === 'standard') {
+    switch (mod) {
+      case '+': return 3;
+      case '++': return 6;
+      case '-': return -3;
+      case '--': return -6;
+    }
+  }
+  switch (mod) {
+    case '+': return 1;
+    case '++': return 2;
+    case '-': return -1;
+    case '--': return -2;
+  }
+}
+
+// Apply a table modifier to a score, returning the shifted score. Standard
+// mode adds the integer delta (clamped to [0, 20]); atlas mode walks the
+// ordinal tier set by N steps (clamped at the ends, same convention as
+// applyVariance).
+export function applyTableModifier(s: Score, mod: TableModifier): Score {
+  if (s.mode === 'standard') {
+    const raw = s.value + STANDARD_MODIFIER_DELTA[mod];
+    const clamped = raw < STANDARD_MIN
+      ? STANDARD_MIN
+      : raw > STANDARD_MAX
+        ? STANDARD_MAX
+        : raw;
+    return { mode: 'standard', value: clamped };
+  }
+  const idx = ATLAS_TIERS.indexOf(s.value);
+  const newIdx = clampIndex(idx + ATLAS_MODIFIER_STEPS[mod], ATLAS_TIERS.length);
+  // Safe: clampIndex bounds newIdx to [0, ATLAS_TIERS.length - 1].
+  return { mode: 'atlas', value: ATLAS_TIERS[newIdx]! };
 }
 
 export function applyVariance(s: Score, rng: RngState): RngDraw<Score> {

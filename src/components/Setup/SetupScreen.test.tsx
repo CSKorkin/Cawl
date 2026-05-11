@@ -88,56 +88,49 @@ describe('SetupScreen — Generated mode (default)', () => {
   });
 });
 
-describe('SetupScreen — Entered mode', () => {
-  // A valid 8x8 grid of "Y" cells (= 10 each) in sheet-paste format.
-  const VALID_PASTE = Array(8)
-    .fill(Array(8).fill('Y').join('\t'))
-    .join('\n');
-
-  async function pasteValidMatrix(user: ReturnType<typeof userEvent.setup>): Promise<void> {
-    await user.click(screen.getByLabelText(/Entered/i));
-    const textarea = screen.getByTestId('matrix-paste-textarea');
-    await user.click(textarea);
-    await user.paste(VALID_PASTE);
-    await user.click(screen.getByTestId('matrix-paste-validate'));
-  }
-
-  it('switching to Entered hides the rosters until a matrix is validated', async () => {
+describe('SetupScreen — Entered mode (default: cell-by-cell grid)', () => {
+  it('switching to Entered defaults to grid mode and shows the rosters first', async () => {
     const user = userEvent.setup();
     render(<SetupScreen onStart={() => {}} />);
     await user.click(screen.getByLabelText(/Entered/i));
-    // Rosters are gone — they appear AFTER matrix validation.
-    expect(screen.queryByTestId('roster-a')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('roster-b')).not.toBeInTheDocument();
-    // Matrix entry is visible.
-    expect(screen.getByTestId('matrix-entry')).toBeInTheDocument();
+    // Rosters appear immediately so the user can pick factions BEFORE
+    // entering scores.
+    expect(screen.getByTestId('roster-a')).toBeInTheDocument();
+    expect(screen.getByTestId('roster-b')).toBeInTheDocument();
+    // Grid mode is the default selection in MatrixEntry's method radio.
+    expect((screen.getByRole('radio', { name: /Cell-by-cell grid/i }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole('radio', { name: /Paste from sheet/i }) as HTMLInputElement).checked).toBe(false);
   });
 
-  it('Start is disabled with a "validate the matrix first" hint until validated', async () => {
+  it('Start is disabled until both rosters AND the matrix are filled', async () => {
     const user = userEvent.setup();
     render(<SetupScreen onStart={() => {}} />);
     await user.click(screen.getByLabelText(/Entered/i));
+    // Initial Entered + empty rosters: hint nudges roster pick first.
     expect(screen.getByRole('button', { name: /Start/i })).toBeDisabled();
-    expect(screen.getByTestId('start-disabled-reason')).toHaveTextContent(/validate the matrix/i);
+    expect(screen.getByTestId('start-disabled-reason')).toHaveTextContent(/Pick all 16 factions/i);
+    expect(screen.getByTestId('grid-blocked-hint')).toHaveTextContent(/before entering matrix scores/i);
   });
 
-  it('after a valid paste, rosters appear with empty dropdowns', async () => {
+  it('grid header cells render the chosen faction logo + name once a roster slot is filled', async () => {
     const user = userEvent.setup();
     render(<SetupScreen onStart={() => {}} />);
-    await pasteValidMatrix(user);
-
+    await user.click(screen.getByLabelText(/Entered/i));
+    // Pick Team A slot 0 = Space Marines.
     const rosterA = screen.getByTestId('roster-a');
-    const slot0 = within(rosterA).getByTestId('team-a-slot-0');
-    expect(within(slot0).getByRole('combobox')).toBeInTheDocument();
-    // No factions populated yet.
-    const select = within(slot0).getByRole('combobox') as HTMLSelectElement;
-    expect(select.value).toBe('');
+    const slot0 = within(within(rosterA).getByTestId('team-a-slot-0')).getByRole('combobox') as HTMLSelectElement;
+    await user.selectOptions(slot0, 'Space Marines');
+    // The grid is visible (rendered above/below the rosters depending on
+    // method). Find the matrix-grid-entry container and look for the
+    // faction name label inside its first row header.
+    const grid = screen.getByTestId('matrix-grid-entry');
+    expect(within(grid).getAllByText('Space Marines').length).toBeGreaterThan(0);
   });
 
   it('disables already-chosen factions in OTHER slots within the same team', async () => {
     const user = userEvent.setup();
     render(<SetupScreen onStart={() => {}} />);
-    await pasteValidMatrix(user);
+    await user.click(screen.getByLabelText(/Entered/i));
     const rosterA = screen.getByTestId('roster-a');
     const slot0Select = within(within(rosterA).getByTestId('team-a-slot-0')).getByRole('combobox') as HTMLSelectElement;
     await user.selectOptions(slot0Select, 'Space Marines');
@@ -162,11 +155,59 @@ describe('SetupScreen — Entered mode', () => {
     await user.click(screen.getByLabelText(/Entered/i));
     expect(screen.queryByRole('button', { name: /Re-roll/i })).not.toBeInTheDocument();
   });
+});
+
+describe('SetupScreen — Entered mode (paste-from-sheet path)', () => {
+  const VALID_PASTE = Array(8)
+    .fill(Array(8).fill('Y').join('\t'))
+    .join('\n');
+
+  async function selectPasteMode(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+    await user.click(screen.getByLabelText(/Entered/i));
+    await user.click(screen.getByRole('radio', { name: /Paste from sheet/i }));
+  }
+
+  async function pasteValidMatrix(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+    await selectPasteMode(user);
+    const textarea = screen.getByTestId('matrix-paste-textarea');
+    await user.click(textarea);
+    await user.paste(VALID_PASTE);
+    await user.click(screen.getByTestId('matrix-paste-validate'));
+  }
+
+  it('switching to paste mode hides the rosters until the matrix is validated', async () => {
+    const user = userEvent.setup();
+    render(<SetupScreen onStart={() => {}} />);
+    await selectPasteMode(user);
+    expect(screen.queryByTestId('roster-a')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('roster-b')).not.toBeInTheDocument();
+    expect(screen.getByTestId('matrix-entry')).toBeInTheDocument();
+  });
+
+  it('paste mode shows a "validate the matrix first" hint on Start', async () => {
+    const user = userEvent.setup();
+    render(<SetupScreen onStart={() => {}} />);
+    await selectPasteMode(user);
+    expect(screen.getByRole('button', { name: /Start/i })).toBeDisabled();
+    expect(screen.getByTestId('start-disabled-reason')).toHaveTextContent(/validate the matrix/i);
+  });
+
+  it('after a valid paste, rosters appear with empty dropdowns', async () => {
+    const user = userEvent.setup();
+    render(<SetupScreen onStart={() => {}} />);
+    await pasteValidMatrix(user);
+
+    const rosterA = screen.getByTestId('roster-a');
+    const slot0 = within(rosterA).getByTestId('team-a-slot-0');
+    expect(within(slot0).getByRole('combobox')).toBeInTheDocument();
+    const select = within(slot0).getByRole('combobox') as HTMLSelectElement;
+    expect(select.value).toBe('');
+  });
 
   it('paste error is surfaced and rosters stay hidden', async () => {
     const user = userEvent.setup();
     render(<SetupScreen onStart={() => {}} />);
-    await user.click(screen.getByLabelText(/Entered/i));
+    await selectPasteMode(user);
     const textarea = screen.getByTestId('matrix-paste-textarea');
     await user.click(textarea);
     // 7 rows instead of 8 → row-count error.
@@ -187,8 +228,9 @@ describe('SetupScreen — Entered mode end-to-end', () => {
     const onStart = vi.fn();
     render(<SetupScreen onStart={onStart} />);
     await user.click(screen.getByLabelText(/Entered/i));
+    // Switch to paste mode (default is grid). Paste then validate.
+    await user.click(screen.getByRole('radio', { name: /Paste from sheet/i }));
 
-    // Paste the matrix and validate.
     const textarea = screen.getByTestId('matrix-paste-textarea');
     await user.click(textarea);
     await user.paste(VALID_PASTE);

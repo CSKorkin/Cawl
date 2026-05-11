@@ -36,14 +36,25 @@ interface Args {
 }
 
 export function cardLocation({ armyId, team, state, viewerSeat, selection }: Args): CardLocation {
-  // 1. Slate (paired with tableId set). Highest priority — once a
-  //    pairing's table is locked, the cards live in the slate column.
+  // 1. Slate. Highest priority — once a pairing has earned its place in
+  //    the slate, the cards live in that column. Two routing conditions:
+  //    (a) the pairing has a tableId (regular defender-led pairings land
+  //    here at LOCK_IN_TABLE time), or (b) the pairing's defenderTeam is
+  //    null (scrum auto-pairs: last-man and refused-pair). The auto-pair
+  //    cases are pinned to slate cols 6/7 by `computeSlateColumns` as
+  //    soon as the LastManAutoPaired / RefusedAutoPaired events fire —
+  //    well before any tableId is assigned — so they need to leave the
+  //    triangle on the same transition, otherwise the surviving-attacker
+  //    fallback in step 2 routes them to an `atk2` slot and displaces
+  //    real attacker/refusal cards (the scrum-display bugs in
+  //    reference/bug_log.json).
   const cols = computeSlateColumns(state);
   for (let i = 0; i < cols.length; i++) {
     const slot = cols[i];
     if (slot === null || slot === undefined) continue;
     const own = team === 'A' ? slot.aArmy : slot.bArmy;
-    if (own === armyId && slot.tableId !== undefined) {
+    if (own !== armyId) continue;
+    if (slot.tableId !== undefined || slot.defenderTeam === null) {
       return { kind: 'slate', column: i };
     }
   }
@@ -55,8 +66,13 @@ export function cardLocation({ armyId, team, state, viewerSeat, selection }: Arg
   //    from `pairings` (instead of `step.attackers.revealed`) is what
   //    keeps refused attackers OUT of the triangle: they were never
   //    written into a pairing, so they fall through to the roster.
+  //    Auto-paired pairings (defenderTeam===null) have already been
+  //    routed to the slate above, so we skip them here — the fallback
+  //    "surviving attacker" branch is only meaningful for defender-led
+  //    pairings (regular R1/R2 and scrum Phase A).
   for (const pairing of state.pairings) {
     if (pairing.tableId !== undefined) continue;
+    if (pairing.defenderTeam === null) continue;
     const own = team === 'A' ? pairing.aArmy : pairing.bArmy;
     if (own !== armyId) continue;
     if (pairing.defenderTeam === team) {

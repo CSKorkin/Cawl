@@ -18,7 +18,7 @@ src/
 └── App.tsx              # view router (setup / play / game-over)
 ```
 
-The engine is the source of truth — UI only reads via
+The engine is the source of truth. UI only reads via
 `viewFor(state, seat)`, which strips the opposing team's pendings by
 construction.
 

@@ -1,0 +1,8 @@
+R, Y, +	Y, -	Y, G, -	R, -	G	Y, -	G	R, -
+Y, F	Y, -, +	G, +, --	G, +, --	Y	Y	GG	Y, F
+Y, +, F	Y, G	Y, G	R, G, +	Y, G	Y	G	G, ?, -
+R, +/-	R	Y	Y, G	Y, G	Y	G	G, GG
+R, -	R,R,+	R	G,GG	G, Y	R,Y,+/-	G, F, -	G
+F, G	Y, ++	Y,+	R, ++, -	Y, G, +	Y	G, F, -	R
+Y, F	G, ?	G, Y, -, ?	G, ?, -	G, Y, ?, -	Y, ?	Y, G, ?	Y, R, ?
+GG, G, --	Y, R	G, GG	R, F, +	GG, G, -	G, GG, +	BOUYA	GG

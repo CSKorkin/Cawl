@@ -7,7 +7,8 @@
 // no AI can cheat by looking at the engine's privileged state.
 
 import { applyAction, rollInitialToken, viewFor } from './state.js';
-import type { PairingState, TeamView } from './state.js';
+import type { Pairing, PairingState, TeamView } from './state.js';
+import { applyTableModifier, tableModifierDelta } from './score.js';
 import type { ArmyId, LogEntry, Round, TableId, Team } from './log.js';
 
 // ── Public types ──────────────────────────────────────────────────────────────
@@ -197,43 +198,91 @@ export function easyActor(seat: Team): Actor {
 // DEFENDERS the locks are simultaneous, so opp uses the same full-pool view
 // and the static prediction is exact.
 
-// Row second-min of myView[X][.] over a given opp pool — the surviving
-// opposing attacker's score against my defender X under the symmetric top-2
-// attacker model.
-function rowSecondMinOver(
+// Row second-min of myView[X][.] over a given opp pool, returned alongside
+// the surviving opposing army id (the second-lowest myView[X][·] over the
+// pool). Under the symmetric top-2 attacker model, opp sends my bottom-2 of
+// myView[X][·]; I refuse my row-min → row-second-min is the surviving opp
+// attacker's score, and `armyId` is who they sent. The position is needed
+// by the impact-bonus term in pickDefender (Task 6).
+interface SecondExtremum {
+  readonly value: number;
+  readonly armyId: ArmyId | null;
+}
+
+function rowSecondMinPosOver(
   view: TeamView,
   X: ArmyId,
   oppPool: readonly ArmyId[],
-): number {
+): SecondExtremum {
   const i = view.myRoster.indexOf(X);
-  let min1 = Infinity;
-  let min2 = Infinity;
+  let min1 = Infinity, min2 = Infinity;
+  let arg1: ArmyId | null = null, arg2: ArmyId | null = null;
   for (const o of oppPool) {
     const j = view.oppRoster.indexOf(o);
     const v = view.myView[i]![j]!.value as number;
-    if (v < min1) { min2 = min1; min1 = v; }
-    else if (v < min2) { min2 = v; }
+    if (v < min1) {
+      min2 = min1; arg2 = arg1;
+      min1 = v; arg1 = o;
+    } else if (v < min2) {
+      min2 = v; arg2 = o;
+    }
   }
-  return min2;
+  return { value: min2, armyId: arg2 };
 }
 
-// Col second-max of myView[.][D] over a given my-pool — the surviving MY
-// attacker's score against opp's defender D under top-2 attackers.
-function colSecondMaxOver(
+// Col second-max of myView[.][D] over a given my-pool, returned alongside
+// the surviving MY attacker's army id. Opp's Easy refuses my col-max →
+// col-second-max is my surviving attacker's score; `armyId` is who survived.
+function colSecondMaxPosOver(
   view: TeamView,
   D: ArmyId,
   myPool: readonly ArmyId[],
-): number {
+): SecondExtremum {
   const j = view.oppRoster.indexOf(D);
-  let max1 = -Infinity;
-  let max2 = -Infinity;
+  let max1 = -Infinity, max2 = -Infinity;
+  let arg1: ArmyId | null = null, arg2: ArmyId | null = null;
   for (const a of myPool) {
     const i = view.myRoster.indexOf(a);
     const v = view.myView[i]![j]!.value as number;
-    if (v > max1) { max2 = max1; max1 = v; }
-    else if (v > max2) { max2 = v; }
+    if (v > max1) {
+      max2 = max1; arg2 = arg1;
+      max1 = v; arg1 = a;
+    } else if (v > max2) {
+      max2 = v; arg2 = a;
+    }
   }
-  return max2;
+  return { value: max2, armyId: arg2 };
+}
+
+// Best positive table-modifier delta achievable on this cell from the
+// picker's view. Reads myImpact, applies each non-null modifier to the cell's
+// score via the *clamped* form (near-edge cells can't realize the full
+// nominal delta — e.g. an 18 with `++` only yields +2, not +6), and returns
+// the max positive shift. 0 when no impact improves the cell.
+//
+// Used by Task 6's defender heuristic: each candidate matchup picks up a
+// fractional bonus for the best table its team could be assigned, capturing
+// upside that Easy's row-mean / row-second-min terms completely ignore.
+function bestImpactDelta(
+  view: TeamView,
+  myArmy: ArmyId,
+  oppArmy: ArmyId,
+): number {
+  const i = view.myRoster.indexOf(myArmy);
+  const j = view.oppRoster.indexOf(oppArmy);
+  if (i < 0 || j < 0) return 0;
+  const cell = view.myImpact[i]?.[j];
+  if (cell === undefined) return 0;
+  const score = view.myView[i]![j]!;
+  const base = score.value as number;
+  let best = 0;
+  for (const mod of cell) {
+    if (mod === null) continue;
+    const shifted = applyTableModifier(score, mod);
+    const delta = (shifted.value as number) - base;
+    if (delta > best) best = delta;
+  }
+  return best;
 }
 
 // Predict opp's defender pick. Opp's Easy = argmax row mean of oppView. Under
@@ -263,30 +312,90 @@ function predictOppDefender(view: TeamView): ArmyId {
   return best!;
 }
 
+// Weight on each impact-bonus term in the Medium defender heuristic (Task 6).
+// 0.5 reflects the v1 simplification that for each pairing the table modifier
+// is realized with some uncertainty about which team picks; see the inline
+// derivation in mediumActor.pickDefender for the full reasoning.
+const IMPACT_BONUS_WEIGHT = 0.5;
+
+// Find the pairing the seat is about to assign a table to. Mirrors the
+// engine's targetIdx selection in applyLockInTable / phaseATableScrum /
+// phaseBTableScrum: own-defender unassigned pairing first, then any
+// null-defender (scrum Phase B). Returns null if no candidate — defensive;
+// the engine never invokes pickTable outside an AWAITING_TABLES phase.
+function findTablePickTarget(view: TeamView): Pairing | null {
+  for (const p of view.pairings) {
+    if (p.tableId === undefined && p.defenderTeam === view.seat) return p;
+  }
+  for (const p of view.pairings) {
+    if (p.tableId === undefined && p.defenderTeam === null) return p;
+  }
+  return null;
+}
+
+// Look up the modifier the picker sees for `pairing` on `tableId`, returning
+// the signed numeric delta in the picker's mode. Reads from `myImpact`, so
+// each seat's view of the same matchup is independent (symbolic inverse).
+function pickerModifierDelta(
+  view: TeamView,
+  pairing: Pairing,
+  tableId: TableId,
+): number {
+  const myArmy = view.seat === 'A' ? pairing.aArmy : pairing.bArmy;
+  const oppArmy = view.seat === 'A' ? pairing.bArmy : pairing.aArmy;
+  const i = view.myRoster.indexOf(myArmy);
+  const j = view.oppRoster.indexOf(oppArmy);
+  if (i < 0 || j < 0) return 0;
+  const symbol = view.myImpact[i]?.[j]?.[tableId - 1] ?? null;
+  if (symbol === null) return 0;
+  return tableModifierDelta(symbol, view.mode);
+}
+
 export function mediumActor(seat: Team): Actor {
   void seat;
   const easy = easyActor(seat);
   return {
-    // Round-sum depth-2 minimax: pick X to maximize the SUM of my two pairing
-    // scores in this round given opp's predicted defender D.
+    // Round-sum depth-2 minimax with impact bonus (Task 6). Pick X to maximize
     //
-    //   defender pairing  = row-second-min of myView[X][.]   over oppPool \ {D}
-    //   attacker pairing  = col-second-max of myView[.][D]   over myPool   \ {X}
+    //   score(X) = defPairing                                  (base, my-defender)
+    //            + atkPairing                                  (base, my-attacker)
+    //            + IMPACT_BONUS_WEIGHT * bestImpactDelta(X, survB)
+    //            + IMPACT_BONUS_WEIGHT * bestImpactDelta(survA, D)
     //
-    // The defender term excludes D because D leaves opp's attacker-eligible
-    // pool. The attacker term penalizes picking X = top-1 or top-2 of col D
-    // (removing a strong attacker from the eligible pool drops the surviving
-    // attacker's score by 5+ points). Easy ignores both effects.
+    // where
+    //   defPairing / survB = row-second-min of myView[X][·] over oppPool\{D}
+    //   atkPairing / survA = col-second-max of myView[·][D] over myPool\{X}
+    //   D                  = predicted opp defender (argmin col-mean from my view)
+    //
+    // Base terms are the same depth-2 closed form as before — the defender
+    // term excludes D, and the attacker term excludes X. The two bonus terms
+    // approximate "expected best-table modifier my team will capture on each
+    // pairing this round." Weighted at 0.5 because in practice each pairing's
+    // table is picked by exactly one team — but the picker's view and the
+    // non-picker's view of the same modifier are symbolic-inverse, so the
+    // expected-from-my-view contribution lands between (no impact, full
+    // upside) on average. v1 uses a flat 0.5 weight (no token tracking);
+    // tunable in T14 once the AI corpus is benchmarked. Easy ignores both
+    // bonus terms entirely — that's the intentional handicap.
     pickDefender(view) {
       const D = predictOppDefender(view);
       const oppEligible = view.oppPool.filter(o => o !== D);
       let best: ArmyId | null = null;
       let bestScore = -Infinity;
       for (const X of view.myPool) {
-        const defPairing = rowSecondMinOver(view, X, oppEligible);
-        const remaining = view.myPool.filter(a => a !== X);
-        const atkPairing = colSecondMaxOver(view, D, remaining);
-        const total = defPairing + atkPairing;
+        const defSurv = rowSecondMinPosOver(view, X, oppEligible);
+        const myRemaining = view.myPool.filter(a => a !== X);
+        const atkSurv = colSecondMaxPosOver(view, D, myRemaining);
+        const defBonus = defSurv.armyId !== null
+          ? bestImpactDelta(view, X, defSurv.armyId)
+          : 0;
+        const atkBonus = atkSurv.armyId !== null
+          ? bestImpactDelta(view, atkSurv.armyId, D)
+          : 0;
+        const total = defSurv.value
+          + atkSurv.value
+          + IMPACT_BONUS_WEIGHT * defBonus
+          + IMPACT_BONUS_WEIGHT * atkBonus;
         if (
           total > bestScore
           || (total === bestScore && best !== null && lex(X, best) < 0)
@@ -299,13 +408,36 @@ export function mediumActor(seat: Team): Actor {
     },
 
     // Under the symmetric top-2 attacker model, depth-2 minimax for these
-    // three phases yields the same closed form Easy uses. Delegate to keep
+    // two phases yields the same closed form Easy uses. Delegate to keep
     // the implementations in sync — if Easy's heuristic ever changes, Medium
     // tracks automatically (and we'll need to re-derive whether that's still
     // depth-2 optimal under the new model).
     pickAttackers(view, oppDefender) { return easy.pickAttackers(view, oppDefender); },
     pickRefusal(view, attackers) { return easy.pickRefusal(view, attackers); },
-    pickTable(view, available) { return easy.pickTable(view, available); },
+
+    // pickTable: argmax of the modifier delta from the picker's view of the
+    // pairing they're picking for. Easy ignores impacts entirely (by design —
+    // it's the handicap that widens the Easy/Medium gap once impacts exist);
+    // Medium scans every available table and chooses the highest-delta one.
+    // Tie-break: lowest tableId, matching Easy's pick when all deltas are 0.
+    // When the impact tensor is empty (all-null), every delta is 0 and Medium
+    // collapses to Easy's lowest-id pick — same observable behavior on legacy
+    // games without impacts.
+    pickTable(view, available) {
+      const target = findTablePickTarget(view);
+      if (target === null) return easy.pickTable(view, available);
+      let bestTable = available[0]!;
+      let bestDelta = pickerModifierDelta(view, target, bestTable);
+      for (let k = 1; k < available.length; k++) {
+        const t = available[k]!;
+        const delta = pickerModifierDelta(view, target, t);
+        if (delta > bestDelta || (delta === bestDelta && t < bestTable)) {
+          bestTable = t;
+          bestDelta = delta;
+        }
+      }
+      return bestTable;
+    },
   };
 }
 

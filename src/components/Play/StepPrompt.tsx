@@ -1,5 +1,7 @@
-import type { PairingState } from '../../engine/state.js';
+import type { Pairing, PairingState } from '../../engine/state.js';
 import type { ArmyId, TableId, Team } from '../../engine/log.js';
+import { tableModifierDelta } from '../../engine/score.js';
+import type { TableModifier } from '../../engine/score.js';
 import { findFaction } from '../../factions.js';
 
 export type SelectionState =
@@ -23,6 +25,71 @@ function name(id: ArmyId): string {
   return findFaction(id)?.displayName ?? id;
 }
 
+// Find the pairing the picker is about to assign a table to. Mirrors the
+// engine's targetIdx selection in applyLockInTable / phaseATableScrum /
+// phaseBTableScrum: own-defender unassigned pairing first, then any
+// null-defender (scrum Phase B). Returns null if no candidate — we're
+// then not in a table-pick phase and the caller should noop.
+function findTablePickTarget(state: PairingState, picker: Team): Pairing | null {
+  for (const p of state.pairings) {
+    if (p.tableId === undefined && p.defenderTeam === picker) return p;
+  }
+  for (const p of state.pairings) {
+    if (p.tableId === undefined && p.defenderTeam === null) return p;
+  }
+  return null;
+}
+
+// Look up the picker's view of the impact symbol on `pairing` at `tableId`.
+// Reads from state.matrix.impactA when picker===A, impactB when picker===B
+// (each team's view is the symbolic inverse of the other's — '+' for one
+// team is '-' for the other).
+function pickerSymbolAt(
+  state: PairingState,
+  picker: Team,
+  pairing: Pairing,
+  tableId: TableId,
+): TableModifier | null {
+  const aIdx = state.rosterA.indexOf(pairing.aArmy);
+  const bIdx = state.rosterB.indexOf(pairing.bArmy);
+  if (aIdx < 0 || bIdx < 0) return null;
+  const slot = tableId - 1;
+  if (picker === 'A') {
+    return state.matrix.impactA[aIdx]?.[bIdx]?.[slot] ?? null;
+  }
+  return state.matrix.impactB[bIdx]?.[aIdx]?.[slot] ?? null;
+}
+
+// Format a TableModifier delta for display next to the table number.
+// Standard mode: raw point delta ("+3", "+6", "-3", "-6"). Atlas mode: step
+// count with unit ("+1 step", "+2 steps"). Null modifier: empty string —
+// caller hides the annotation entirely.
+function formatModifier(sym: TableModifier | null, mode: 'standard' | 'atlas'): string {
+  if (sym === null) return '';
+  const delta = tableModifierDelta(sym, mode);
+  const sign = delta > 0 ? '+' : '';
+  if (mode === 'standard') return `${sign}${delta}`;
+  const unit = Math.abs(delta) === 1 ? 'step' : 'steps';
+  return `${sign}${delta} ${unit}`;
+}
+
+// Color the table button by modifier sign / tier. Same tier hierarchy as
+// the matrix overlay chips in Matrix.tsx (CHIP_BG): '+'/'++' increasingly
+// green, '-'/'--' increasingly red. Null falls back to the default
+// unselected slate.
+const MODIFIER_BG: Record<TableModifier, string> = {
+  '+':  'border-emerald-700/80 bg-emerald-900/40 hover:bg-emerald-900/60',
+  '++': 'border-green-600/80 bg-green-800/50 hover:bg-green-800/70',
+  '-':  'border-orange-700/80 bg-orange-900/40 hover:bg-orange-900/60',
+  '--': 'border-red-700/80 bg-red-900/50 hover:bg-red-900/70',
+};
+
+function tableButtonClass(sym: TableModifier | null, isSelected: boolean): string {
+  if (isSelected) return 'border-sky-500 bg-sky-700 text-white';
+  if (sym === null) return 'border-slate-700 bg-slate-800 hover:bg-slate-700';
+  return MODIFIER_BG[sym];
+}
+
 // Per-phase prompt + confirm rules. The roster click handler is wired up in
 // PlayScreen; this component handles the table-pick UI and the confirm
 // button enablement.
@@ -41,6 +108,10 @@ export function StepPrompt({
   let confirmEnabled = false;
   let pickerKind: 'army' | 'table' = 'army';
   let expectedSelectionCount = 1;
+  // Resolved lazily — only meaningful in a table-pick phase. Used by the
+  // table-pick UI to annotate each available table with the modifier the
+  // active pairing carries on it from the picker's view.
+  const pickTarget = findTablePickTarget(state, humanTeam);
 
   switch (phase) {
     case 'ROUND_1.AWAITING_DEFENDERS':
@@ -113,19 +184,25 @@ export function StepPrompt({
         <div className="flex flex-wrap gap-1" data-testid="table-picker">
           {availableTables.map((id) => {
             const isSelected = selection.kind === 'table' && selection.tableId === id;
+            const sym = pickTarget !== null
+              ? pickerSymbolAt(state, humanTeam, pickTarget, id)
+              : null;
+            const annotation = formatModifier(sym, state.mode);
             return (
               <button
                 key={id}
                 type="button"
                 onClick={() => onSelectTable(id)}
-                className={`min-w-[2.5rem] rounded border px-2 py-1 text-sm font-mono ${
-                  isSelected
-                    ? 'border-sky-500 bg-sky-700 text-white'
-                    : 'border-slate-700 bg-slate-800 hover:bg-slate-700'
-                }`}
+                className={`min-w-[2.5rem] rounded border px-2 py-1 text-sm font-mono ${tableButtonClass(sym, isSelected)}`}
                 data-testid={`table-option-${id}`}
+                {...(sym !== null ? { 'data-modifier': sym } : {})}
               >
-                T{id}
+                <span>T{id}</span>
+                {annotation !== '' && (
+                  <span className="ml-1 text-xs opacity-90" data-testid={`table-option-${id}-mod`}>
+                    {annotation}
+                  </span>
+                )}
               </button>
             );
           })}

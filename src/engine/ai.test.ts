@@ -5,8 +5,10 @@ import {
   applyAction,
   viewFor,
 } from './state.js';
-import type { PairingState, TeamView } from './state.js';
+import type { Pairing, PairingState, TeamView } from './state.js';
 import type { ArmyId, LogEntry, Team } from './log.js';
+import type { CellImpact } from './matrix.js';
+import type { TableModifier } from './score.js';
 import {
   scriptedActor,
   easyActor,
@@ -28,7 +30,9 @@ function init(seed = 0xdead): PairingState {
 }
 
 // Build a minimal TeamView for unit-testing easyActor methods directly.
-// myView is row-indexed by myRoster, col-indexed by oppRoster.
+// myView is row-indexed by myRoster, col-indexed by oppRoster. myImpact
+// follows the same indexing with an inner 8-element table-modifier vector;
+// when omitted, defaults to an all-null tensor of the right shape.
 function makeView(opts: {
   seat: Team;
   myRoster: readonly ArmyId[];
@@ -38,17 +42,24 @@ function makeView(opts: {
   myView: readonly (readonly number[])[];
   // Optional revealed defenders so pickAttackers / pickRefusal can read self.
   revealedDefenders?: { a: ArmyId; b: ArmyId };
+  myImpact?: readonly (readonly CellImpact[])[];
+  pairings?: readonly Pairing[];
+  phase?: TeamView['phase'];
 }): TeamView {
+  const impact: readonly (readonly CellImpact[])[] = opts.myImpact ?? opts.myView.map(
+    row => row.map(() => Array.from({ length: 8 }, () => null as TableModifier | null)),
+  );
   return {
     seat: opts.seat,
-    phase: 'ROUND_1.AWAITING_DEFENDERS',
+    phase: opts.phase ?? 'ROUND_1.AWAITING_DEFENDERS',
     mode: 'standard',
     myView: opts.myView.map(row => row.map(v => ({ mode: 'standard' as const, value: v }))),
+    myImpact: impact,
     myRoster: opts.myRoster,
     oppRoster: opts.oppRoster,
     myPool: opts.myPool,
     oppPool: opts.oppPool,
-    pairings: [],
+    pairings: opts.pairings ?? [],
     log: [],
     tokenHolder: null,
     step: opts.revealedDefenders
@@ -300,12 +311,14 @@ describe('easyActor.pickTable', () => {
 //     ⇒ Top-2 is the closed-form optimum. SAME as new-Easy ⇒ Medium delegates.
 //
 //   pickRefusal: Easy is already optimal at depth 2. ⇒ delegate.
-//   pickTable: tableChoiceScoreModifier returns 0 for all tables. ⇒ delegate.
+//   pickTable: Medium scans `myImpact` for each available table and picks
+//     the highest delta; ties go to the lowest tableId (Easy's pick when
+//     all deltas are 0). When the matrix carries no impacts, every delta
+//     is 0 and Medium collapses to Easy's behavior.
 //
-// Net: Medium differs from Easy only in pickDefender. The other three
-// methods now share Easy's logic (Medium delegates) — by design, since
-// depth-2 minimax against new-Easy gives the same closed form for those
-// phases.
+// Net: Medium differs from Easy in pickDefender always, and in pickTable
+// when the matrix carries any nonzero impact. pickAttackers/pickRefusal
+// share Easy's logic by design (closed-form depth-2 optimum).
 
 describe('mediumActor.pickDefender', () => {
   // All tests below pin col 0 to a uniform value across myPool, which makes
@@ -421,6 +434,98 @@ describe('mediumActor.pickDefender', () => {
     expect(easyActor('A').pickDefender(view)).toBe('a0');
   });
 
+  it('Task 6 — impact bonus flips Medium\'s pick toward a high-upside matchup', () => {
+    // Setup: Medium WITHOUT bonus would pick a1 (higher row-second-min);
+    // adding the impact bonus on (a0, b1) flips the pick to a0.
+    //
+    // myRoster: [a0, a1, a2], myPool same.
+    // oppRoster: [b0, b1, b2, b3, b4], oppPool same.
+    // col 0 uniform 0 → predicted D = b0, col-second-max(b0, myPool\{X}) = 0 ∀X.
+    // Row over oppEligible = {b1..b4}:
+    //   a0: [10, 10, 10, 0]  sm=10 at b1
+    //   a1: [11, 11, 11, 0]  sm=11 at b1
+    //   a2: [ 0,  0,  0, 0]  sm=0
+    // Without bonus: total(a0)=10, total(a1)=11, total(a2)=0. Medium picks a1.
+    // Impact: `++` on (a0, b1) at table 1 → cell base 10, applied 16, delta 6.
+    //   defBonus(a0) = 6 → total(a0) = 10 + 0.5*6 = 13.
+    //   defBonus(a1) = 0 → total(a1) = 11.
+    // Medium picks a0. Easy still picks by row mean: a1 = 33/5 = 6.6 highest.
+    const myView = [
+      [0, 10, 10, 10, 0],
+      [0, 11, 11, 11, 0],
+      [0,  0,  0,  0, 0],
+    ];
+    const impact = Array.from({ length: 3 }, (_, i) =>
+      Array.from({ length: 5 }, (_, j) =>
+        Array.from({ length: 8 }, (_, t) =>
+          i === 0 && j === 1 && t === 0 ? '++' as TableModifier : null,
+        ),
+      ),
+    );
+    const view = makeView({
+      seat: 'A',
+      myRoster: ['a0', 'a1', 'a2'],
+      oppRoster: ['b0', 'b1', 'b2', 'b3', 'b4'],
+      myPool:    ['a0', 'a1', 'a2'],
+      oppPool:   ['b0', 'b1', 'b2', 'b3', 'b4'],
+      myView,
+      myImpact: impact,
+    });
+    expect(mediumActor('A').pickDefender(view)).toBe('a0');
+    expect(easyActor('A').pickDefender(view)).toBe('a1');
+  });
+
+  it('Task 6 — impact bonus uses CLAMPED delta (near-edge cells get less than the nominal +6)', () => {
+    // Same shape, but the impact cell base is 19 → `++` clamps at 20, delta=1.
+    // bonus(a0) = 0.5*1 = 0.5; total(a0) = 10 + 0.5 = 10.5 < 11 = total(a1).
+    // Medium picks a1 (unchanged from base — the near-edge clamp neutralizes
+    // the nominal +6 advantage and we fall back to the base round-sum order).
+    const myView = [
+      [0, 19, 10, 10, 0],  // (a0, b1) = 19, near max
+      [0, 11, 11, 11, 0],
+      [0,  0,  0,  0, 0],
+    ];
+    const impact = Array.from({ length: 3 }, (_, i) =>
+      Array.from({ length: 5 }, (_, j) =>
+        Array.from({ length: 8 }, (_, t) =>
+          i === 0 && j === 1 && t === 0 ? '++' as TableModifier : null,
+        ),
+      ),
+    );
+    const view = makeView({
+      seat: 'A',
+      myRoster: ['a0', 'a1', 'a2'],
+      oppRoster: ['b0', 'b1', 'b2', 'b3', 'b4'],
+      myPool:    ['a0', 'a1', 'a2'],
+      oppPool:   ['b0', 'b1', 'b2', 'b3', 'b4'],
+      myView,
+      myImpact: impact,
+    });
+    // Note: a0 row-second-min over {b1..b4} of [19,10,10,0] sorted [0,10,10,19] → sm=10.
+    // Same total math as the prior test but bonus is 0.5*1, not 0.5*6.
+    expect(mediumActor('A').pickDefender(view)).toBe('a1');
+  });
+
+  it('Task 6 — all-null impact tensor leaves pickDefender behavior identical to pre-Task-6', () => {
+    // Same data as the first ROUND_SUM regression case at the top of this
+    // block: Medium picks a2 by maximizing row second-min over oppEligible.
+    // With no impacts in play, the heuristic must produce the same answer.
+    const myView = [
+      [2, 20, 0, 5, 5],
+      [2,  5, 5, 5, 5],
+      [2,  7, 7, 7, 7],
+    ];
+    const view = makeView({
+      seat: 'A',
+      myRoster: ['a0', 'a1', 'a2'],
+      oppRoster: ['b0', 'b1', 'b2', 'b3', 'b4'],
+      myPool:    ['a0', 'a1', 'a2'],
+      oppPool:   ['b0', 'b1', 'b2', 'b3', 'b4'],
+      myView,
+    });
+    expect(mediumActor('A').pickDefender(view)).toBe('a2');
+  });
+
   it('penalizes picking X that is in the top-2 of col D (round-sum captures attacker eligibility)', () => {
     // Predicted opp defender D = b0 (argmin col-mean: col 0 mean = 5; col 1
     // mean = 9; col 2 mean = 9 → b0 wins).
@@ -490,10 +595,225 @@ describe('mediumActor — delegation to Easy on the other three methods', () => 
       .toBe(easyActor('A').pickRefusal(view, ['b1', 'b3']));
   });
 
-  it('mediumActor.pickTable returns lowest available (= Easy)', () => {
+  it('mediumActor.pickTable returns lowest available (= Easy) when impacts are empty', () => {
     const view = makeBaselineView();
+    // Baseline view has no pairings, so findTablePickTarget returns null and
+    // Medium delegates to Easy's lowest-id pick. With pairings + impacts the
+    // behavior diverges; see the "mediumActor.pickTable with impacts" block.
     expect(mediumActor('A').pickTable(view, [3, 7, 2, 5])).toBe(2);
     expect(easyActor('A').pickTable(view, [3, 7, 2, 5])).toBe(2);
+  });
+});
+
+// ── mediumActor.pickTable — impact-aware table choice ─────────────────────────
+//
+// Medium reads `myImpact` to score each available table and picks argmax.
+// Easy ignores impacts entirely (still picks lowest available id) — that's
+// the deliberate handicap that widens the Easy/Medium gap once impacts exist.
+
+describe('mediumActor.pickTable with impacts', () => {
+  // Helper: build an 8×8×8 impact tensor with a single modifier placed at
+  // (myArmyIdx, oppArmyIdx, tableIdx0Based). All other cells null.
+  function singleImpactTensor(
+    myIdx: number,
+    oppIdx: number,
+    tableIdx: number,
+    mod: TableModifier,
+  ): (TableModifier | null)[][][] {
+    return Array.from({ length: 8 }, (_, i) =>
+      Array.from({ length: 8 }, (_, j) =>
+        Array.from({ length: 8 }, (_, t) =>
+          i === myIdx && j === oppIdx && t === tableIdx ? mod : null,
+        ),
+      ),
+    );
+  }
+
+  // Multi-impact tensor: set a list of (table0Based, modifier) for one cell.
+  function impactsForCell(
+    myIdx: number,
+    oppIdx: number,
+    perTable: Partial<Record<number, TableModifier>>,
+  ): (TableModifier | null)[][][] {
+    return Array.from({ length: 8 }, (_, i) =>
+      Array.from({ length: 8 }, (_, j) =>
+        Array.from({ length: 8 }, (_, t) =>
+          i === myIdx && j === oppIdx ? perTable[t] ?? null : null,
+        ),
+      ),
+    );
+  }
+
+  // Picker view setup: seat 'A' defends pairing (a0 vs b0) in round 1.
+  // The myImpact lookup uses [myRosterIdx=0][oppRosterIdx=0][t-1].
+  function viewWithImpact(
+    impact: (TableModifier | null)[][][],
+    seat: Team = 'A',
+  ): TeamView {
+    const ownArmy = seat === 'A' ? 'a0' : 'b0';
+    const oppArmy = seat === 'A' ? 'b0' : 'a0';
+    const myRoster = seat === 'A' ? ROSTER_A : ROSTER_B;
+    const oppRoster = seat === 'A' ? ROSTER_B : ROSTER_A;
+    const pairing: Pairing = {
+      round: 1,
+      aArmy: 'a0',
+      bArmy: 'b0',
+      defenderTeam: seat,
+    };
+    return makeView({
+      seat,
+      myRoster, oppRoster,
+      myPool: myRoster.filter(x => x !== ownArmy),
+      oppPool: oppRoster.filter(x => x !== oppArmy),
+      myView: Array.from({ length: 8 }, () => Array(8).fill(10)),
+      myImpact: impact,
+      pairings: [pairing],
+      phase: 'ROUND_1.AWAITING_TABLES',
+    });
+  }
+
+  it('Medium picks the table where the cell carries `+` over a null table', () => {
+    const impact = singleImpactTensor(0, 0, /*t0-based*/ 2, '+'); // table 3
+    const view = viewWithImpact(impact);
+    expect(mediumActor('A').pickTable(view, [1, 2, 3, 4])).toBe(3);
+    // Easy still picks lowest id, ignoring the modifier.
+    expect(easyActor('A').pickTable(view, [1, 2, 3, 4])).toBe(1);
+  });
+
+  it('Medium prefers `++` over `+` when both are available', () => {
+    const impact = impactsForCell(0, 0, { 2: '+', 4: '++' }); // tables 3 and 5
+    const view = viewWithImpact(impact);
+    expect(mediumActor('A').pickTable(view, [1, 3, 5])).toBe(5);
+  });
+
+  it('Medium avoids `-` when a null-modifier table is available', () => {
+    const impact = singleImpactTensor(0, 0, 0, '-'); // table 1
+    const view = viewWithImpact(impact);
+    // Tables 2 and 3 are null (delta 0), table 1 is -3. Tie-break = lowest id.
+    expect(mediumActor('A').pickTable(view, [1, 2, 3])).toBe(2);
+    // Easy still picks the lowest id (table 1), happily eating the -3.
+    expect(easyActor('A').pickTable(view, [1, 2, 3])).toBe(1);
+  });
+
+  it('Medium prefers `--` over `-` (picks the least-bad option when forced)', () => {
+    const impact = impactsForCell(0, 0, { 0: '--', 2: '-' }); // tables 1, 3
+    const view = viewWithImpact(impact);
+    // Only tables 1 (-6) and 3 (-3) available — Medium picks 3, the lesser hit.
+    expect(mediumActor('A').pickTable(view, [1, 3])).toBe(3);
+  });
+
+  it('breaks ties by lowest tableId — same direction as Easy', () => {
+    const impact = impactsForCell(0, 0, { 1: '+', 5: '+' }); // tables 2 and 6
+    const view = viewWithImpact(impact);
+    expect(mediumActor('A').pickTable(view, [2, 6])).toBe(2);
+  });
+
+  it('collapses to Easy when impact tensor is all-null', () => {
+    const impact: (TableModifier | null)[][][] = Array.from({ length: 8 }, () =>
+      Array.from({ length: 8 }, () => Array.from({ length: 8 }, () => null)),
+    );
+    const view = viewWithImpact(impact);
+    expect(mediumActor('A').pickTable(view, [3, 7, 2])).toBe(2);
+    expect(easyActor('A').pickTable(view, [3, 7, 2])).toBe(2);
+  });
+
+  it('reads from impactB (the seat-B tensor) when picker is Team B', () => {
+    // Set the modifier on Team B's view of their (b0 vs a0) cell — which
+    // lives at impactB[0][0][t]. Seat B's myImpact IS impactB.
+    const impact = singleImpactTensor(0, 0, 3, '++'); // table 4 from B's view
+    const view = viewWithImpact(impact, 'B');
+    expect(mediumActor('B').pickTable(view, [1, 2, 3, 4, 5])).toBe(4);
+  });
+
+  it('falls through to null-defender pairings (scrum Phase B)', () => {
+    // Holder picks for an auto-paired game (defenderTeam===null). Picker's
+    // own-defender pairings are all already assigned, so findTablePickTarget
+    // falls through to the auto-pair. Modifier on table 7 in picker's view.
+    const impact = singleImpactTensor(0, 0, 6, '+'); // a0 vs b0, table 7
+    const autoPair: Pairing = {
+      round: 'scrum',
+      aArmy: 'a0',
+      bArmy: 'b0',
+      defenderTeam: null,
+    };
+    const view = makeView({
+      seat: 'A',
+      myRoster: ROSTER_A, oppRoster: ROSTER_B,
+      myPool: [], oppPool: [],
+      myView: Array.from({ length: 8 }, () => Array(8).fill(10)),
+      myImpact: impact,
+      pairings: [autoPair],
+      phase: 'SCRUM.AWAITING_TABLES',
+    });
+    expect(mediumActor('A').pickTable(view, [3, 5, 7])).toBe(7);
+  });
+});
+
+// ── Medium-vs-Easy win-rate corpus (Task 6 acceptance gate) ───────────────────
+//
+// Engine spec success criterion 6: Medium beats Easy ≥70% of the time. With
+// generated matrices carrying ~25% impact-cells (T3), Medium's impact-aware
+// table picks (T5) + defender heuristic (T6) should comfortably clear that
+// bar — Easy ignores impacts entirely by design.
+//
+// The score function below sums each team's own VIEW of every pairing,
+// including the table-modifier delta from that team's impact tensor (the
+// symbolic inverse means the two teams' modifiers for the same matchup are
+// usually opposite). It is NOT the same as Pairing.tableScoreModifier, which
+// records only the defender team's perspective.
+
+import { tableModifierDelta as tmd } from './score.js';
+import type { TableModifier as TM } from './score.js';
+
+function scoreFromTeamView(state: PairingState, team: Team): number {
+  let total = 0;
+  for (const p of state.pairings) {
+    const aIdx = state.rosterA.indexOf(p.aArmy);
+    const bIdx = state.rosterB.indexOf(p.bArmy);
+    const base = team === 'A'
+      ? (state.matrix.viewA[aIdx]![bIdx]!.value as number)
+      : (state.matrix.viewB[bIdx]![aIdx]!.value as number);
+    total += base;
+    if (p.tableId !== undefined) {
+      const slot = p.tableId - 1;
+      const sym: TM | null = team === 'A'
+        ? (state.matrix.impactA[aIdx]?.[bIdx]?.[slot] ?? null)
+        : (state.matrix.impactB[bIdx]?.[aIdx]?.[slot] ?? null);
+      if (sym !== null) total += tmd(sym, state.matrix.mode);
+    }
+  }
+  return total;
+}
+
+describe('Medium vs Easy win-rate (Task 6 acceptance gate)', () => {
+  it('Medium beats Easy ≥70% across a 50-seed corpus (alternating seats)', () => {
+    const seeds = Array.from({ length: 50 }, (_, i) => 1000 + i);
+    let mediumWins = 0;
+    let totalGames = 0;
+    for (const seed of seeds) {
+      // Game 1: Medium = A, Easy = B
+      {
+        const { state } = runGame(init(seed), mediumActor('A'), easyActor('B'));
+        const sM = scoreFromTeamView(state, 'A');
+        const sE = scoreFromTeamView(state, 'B');
+        if (sM > sE) mediumWins++;
+        totalGames++;
+      }
+      // Game 2: Easy = A, Medium = B (same seed → same matrix; symmetric eval)
+      {
+        const { state } = runGame(init(seed), easyActor('A'), mediumActor('B'));
+        const sE = scoreFromTeamView(state, 'A');
+        const sM = scoreFromTeamView(state, 'B');
+        if (sM > sE) mediumWins++;
+        totalGames++;
+      }
+    }
+    const rate = mediumWins / totalGames;
+    // Engine spec criterion 6: ≥70%. Print on failure to aid T14 retuning.
+    if (rate < 0.7) {
+      console.error(`Medium win rate: ${(rate * 100).toFixed(1)}% (${mediumWins}/${totalGames})`);
+    }
+    expect(rate).toBeGreaterThanOrEqual(0.7);
   });
 });
 

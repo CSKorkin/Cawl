@@ -15,6 +15,9 @@ import type {
 import type { ArmyId, LogEntry, Team } from './log.js';
 import { seed as mkSeed, nextInt, pick } from './rng.js';
 import type { RngState } from './rng.js';
+import type { CellImpact } from './matrix.js';
+import type { Score, TableModifier } from './score.js';
+import type { Pairing } from './state.js';
 
 const ROSTER_A: readonly ArmyId[] = Array.from({ length: 8 }, (_, i) => `a${i}`);
 const ROSTER_B: readonly ArmyId[] = Array.from({ length: 8 }, (_, i) => `b${i}`);
@@ -833,7 +836,10 @@ describe('state.applyAction LOCK_IN_TABLE (ROUND_1.AWAITING_TABLES)', () => {
     if (!r.ok) return;
     const updated = r.state.pairings.find(p => p.defenderTeam === holder)!;
     expect(updated.tableId).toBe(3);
-    expect(updated.tableScoreModifier).toBe(0);
+    // `tableScoreModifier` is populated to a number — the actual value
+    // depends on the generated impact tensor for this seed; specific-value
+    // assertions live in the table-impact tests below.
+    expect(typeof updated.tableScoreModifier).toBe('number');
     const expectedDefender = holder === 'A' ? updated.aArmy : updated.bArmy;
     expect(r.events).toEqual([
       { type: 'TableChosen', round: 1, team: holder, tableId: 3, defenderArmy: expectedDefender },
@@ -1923,5 +1929,215 @@ describe('state property: information hiding holds through R1 to AWAITING_TABLES
       // JSON round-trip at the end.
       expect(JSON.parse(JSON.stringify(state))).toEqual(state);
     }
+  });
+});
+
+// ── Table-impact modifier on Pairing.tableScoreModifier (T4) ──────────────────
+
+describe('state.applyAction LOCK_IN_TABLE — tableScoreModifier from impact tensor', () => {
+  // Reusable scaffolding: build a state already at ROUND_1.AWAITING_TABLES
+  // with caller-controlled pairings, token holder, and impact tensor. Bypasses
+  // the engine's RNG-driven token roll-off so the test can deterministically
+  // control which team picks first.
+  function emptyImpactA(): (TableModifier | null)[][][] {
+    return Array.from({ length: 8 }, () =>
+      Array.from({ length: 8 }, () =>
+        Array.from({ length: 8 }, () => null as TableModifier | null),
+      ),
+    );
+  }
+
+  function constantViewA(value: number): Score[][] {
+    return Array.from({ length: 8 }, () =>
+      Array.from({ length: 8 }, () => ({ mode: 'standard', value } as Score)),
+    );
+  }
+
+  function midTierAtlasViewA(): Score[][] {
+    return Array.from({ length: 8 }, () =>
+      Array.from({ length: 8 }, () => ({ mode: 'atlas', value: 3 } as Score)),
+    );
+  }
+
+  function tablesPhaseState(opts: {
+    readonly mode?: 'standard' | 'atlas';
+    readonly impactA: (TableModifier | null)[][][];
+    readonly tokenHolder: Team;
+    readonly pairings: readonly Pairing[];
+  }): PairingState {
+    const mode = opts.mode ?? 'standard';
+    const viewA = mode === 'standard' ? constantViewA(10) : midTierAtlasViewA();
+    const base = createInitialState({
+      mode,
+      seed: 0,
+      rosterA: ROSTER_A,
+      rosterB: ROSTER_B,
+      viewAOverride: viewA,
+      impactAOverride: opts.impactA,
+    });
+    const pairedA = new Set(opts.pairings.map(p => p.aArmy));
+    const pairedB = new Set(opts.pairings.map(p => p.bArmy));
+    return {
+      ...base,
+      phase: 'ROUND_1.AWAITING_TABLES',
+      pairings: [...opts.pairings],
+      tokenHolder: opts.tokenHolder,
+      poolA: ROSTER_A.filter(a => !pairedA.has(a)),
+      poolB: ROSTER_B.filter(b => !pairedB.has(b)),
+    };
+  }
+
+  // Default test pairings: A defends a3 vs b2, B defends b5 vs a1. Indices
+  // into the rosters: a3 → 3, b2 → 2, a1 → 1, b5 → 5. Set impacts on these
+  // specific (cell, table) coordinates to drive the lookup.
+  const PAIR_A_DEF: Pairing = { round: 1, aArmy: 'a3', bArmy: 'b2', defenderTeam: 'A' };
+  const PAIR_B_DEF: Pairing = { round: 1, aArmy: 'a1', bArmy: 'b5', defenderTeam: 'B' };
+
+  it('records "+" as +3 in standard mode (defender team A view)', () => {
+    const impactA = emptyImpactA();
+    impactA[3]![2]![2] = '+'; // tableId 3 → slot 2
+    const s = tablesPhaseState({
+      impactA,
+      tokenHolder: 'A',
+      pairings: [PAIR_A_DEF, PAIR_B_DEF],
+    });
+    const r = applyAction(s, { type: 'LOCK_IN_TABLE', team: 'A', tableId: 3 });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const updated = r.state.pairings.find(p => p.defenderTeam === 'A')!;
+    expect(updated.tableScoreModifier).toBe(3);
+  });
+
+  it('records "++" as +6 in standard mode', () => {
+    const impactA = emptyImpactA();
+    impactA[3]![2]![2] = '++';
+    const s = tablesPhaseState({
+      impactA,
+      tokenHolder: 'A',
+      pairings: [PAIR_A_DEF, PAIR_B_DEF],
+    });
+    const r = applyAction(s, { type: 'LOCK_IN_TABLE', team: 'A', tableId: 3 });
+    if (!r.ok) throw new Error('expected ok');
+    const updated = r.state.pairings.find(p => p.defenderTeam === 'A')!;
+    expect(updated.tableScoreModifier).toBe(6);
+  });
+
+  it('records "-" as -3 and "--" as -6 in standard mode', () => {
+    const impactMinus = emptyImpactA();
+    impactMinus[3]![2]![2] = '-';
+    const r1 = applyAction(
+      tablesPhaseState({
+        impactA: impactMinus,
+        tokenHolder: 'A',
+        pairings: [PAIR_A_DEF, PAIR_B_DEF],
+      }),
+      { type: 'LOCK_IN_TABLE', team: 'A', tableId: 3 },
+    );
+    if (!r1.ok) throw new Error('expected ok');
+    expect(r1.state.pairings.find(p => p.defenderTeam === 'A')!.tableScoreModifier).toBe(-3);
+
+    const impactDoubleMinus = emptyImpactA();
+    impactDoubleMinus[3]![2]![2] = '--';
+    const r2 = applyAction(
+      tablesPhaseState({
+        impactA: impactDoubleMinus,
+        tokenHolder: 'A',
+        pairings: [PAIR_A_DEF, PAIR_B_DEF],
+      }),
+      { type: 'LOCK_IN_TABLE', team: 'A', tableId: 3 },
+    );
+    if (!r2.ok) throw new Error('expected ok');
+    expect(r2.state.pairings.find(p => p.defenderTeam === 'A')!.tableScoreModifier).toBe(-6);
+  });
+
+  it('records "++" as +2 step delta in atlas mode', () => {
+    const impactA = emptyImpactA();
+    impactA[3]![2]![2] = '++';
+    const s = tablesPhaseState({
+      mode: 'atlas',
+      impactA,
+      tokenHolder: 'A',
+      pairings: [PAIR_A_DEF, PAIR_B_DEF],
+    });
+    const r = applyAction(s, { type: 'LOCK_IN_TABLE', team: 'A', tableId: 3 });
+    if (!r.ok) throw new Error('expected ok');
+    const updated = r.state.pairings.find(p => p.defenderTeam === 'A')!;
+    expect(updated.tableScoreModifier).toBe(2);
+  });
+
+  it('defender team B reads from impactB (symbolic inverse of impactA)', () => {
+    // Place a "+" on impactA[1][5][4] — that's the matchup (a1, b5) on
+    // table 5 from A's view. impactB[5][1][4] = invertModifier('+') = '-'.
+    // For B-defended pairing (a1 vs b5) picking T5, the lookup uses
+    // impactB and yields -3.
+    const impactA = emptyImpactA();
+    impactA[1]![5]![4] = '+';
+    const s = tablesPhaseState({
+      impactA,
+      tokenHolder: 'B',
+      pairings: [PAIR_A_DEF, PAIR_B_DEF],
+    });
+    const r = applyAction(s, { type: 'LOCK_IN_TABLE', team: 'B', tableId: 5 });
+    if (!r.ok) throw new Error('expected ok');
+    const updated = r.state.pairings.find(p => p.defenderTeam === 'B')!;
+    expect(updated.tableScoreModifier).toBe(-3);
+  });
+
+  it('null defender (auto-paired scrum game) uses Team A view by convention', () => {
+    // Auto-paired pairings have defenderTeam === null. The hook reads
+    // impactA at the (aArmy, bArmy) index pair. We synthesize a scrum-
+    // shaped state for this test (phase = SCRUM.AWAITING_TABLES, with
+    // both R1/R2 already complete and only the auto-paired games left).
+    // Building a real one through the engine would be a long script; we
+    // instead seed a minimal state that exercises the same code path.
+    const impactA = emptyImpactA();
+    impactA[7]![7]![0] = '++'; // a7 vs b7 on table 1
+    const autoPair: Pairing = { round: 'scrum', aArmy: 'a7', bArmy: 'b7', defenderTeam: null };
+    // Phase B of scrum: both R1+R2 pairings already exist with tables
+    // assigned; one defender-led scrum pair (with table) plus our auto-
+    // pair without one. Token holder picks unilaterally.
+    const filledR1A: Pairing = { round: 1, aArmy: 'a0', bArmy: 'b0', defenderTeam: 'A', tableId: 2, tableScoreModifier: 0 };
+    const filledR1B: Pairing = { round: 1, aArmy: 'a1', bArmy: 'b1', defenderTeam: 'B', tableId: 3, tableScoreModifier: 0 };
+    const filledR2A: Pairing = { round: 2, aArmy: 'a2', bArmy: 'b2', defenderTeam: 'A', tableId: 4, tableScoreModifier: 0 };
+    const filledR2B: Pairing = { round: 2, aArmy: 'a3', bArmy: 'b3', defenderTeam: 'B', tableId: 5, tableScoreModifier: 0 };
+    const filledScrumA: Pairing = { round: 'scrum', aArmy: 'a4', bArmy: 'b4', defenderTeam: 'A', tableId: 6, tableScoreModifier: 0 };
+    const filledScrumB: Pairing = { round: 'scrum', aArmy: 'a5', bArmy: 'b5', defenderTeam: 'B', tableId: 7, tableScoreModifier: 0 };
+    const otherAutoPair: Pairing = { round: 'scrum', aArmy: 'a6', bArmy: 'b6', defenderTeam: null, tableId: 8, tableScoreModifier: 0 };
+    const base = createInitialState({
+      mode: 'standard',
+      seed: 0,
+      rosterA: ROSTER_A,
+      rosterB: ROSTER_B,
+      viewAOverride: constantViewA(10),
+      impactAOverride: impactA,
+    });
+    const s: PairingState = {
+      ...base,
+      phase: 'SCRUM.AWAITING_TABLES',
+      pairings: [filledR1A, filledR1B, filledR2A, filledR2B, filledScrumA, filledScrumB, otherAutoPair, autoPair],
+      tokenHolder: 'A',
+      poolA: [],
+      poolB: [],
+    };
+    const r = applyAction(s, { type: 'LOCK_IN_TABLE', team: 'A', tableId: 1 });
+    if (!r.ok) throw new Error(`expected ok, got ${JSON.stringify(r.error)}`);
+    const updated = r.state.pairings.find(p => p.aArmy === 'a7')!;
+    expect(updated.tableId).toBe(1);
+    expect(updated.tableScoreModifier).toBe(6);
+  });
+
+  it('records 0 when the chosen table has no modifier on that cell', () => {
+    const impactA = emptyImpactA();
+    impactA[3]![2]![5] = '++'; // populated only on a different table (T6)
+    const s = tablesPhaseState({
+      impactA,
+      tokenHolder: 'A',
+      pairings: [PAIR_A_DEF, PAIR_B_DEF],
+    });
+    // Pick T3 → slot 2, which is null.
+    const r = applyAction(s, { type: 'LOCK_IN_TABLE', team: 'A', tableId: 3 });
+    if (!r.ok) throw new Error('expected ok');
+    const updated = r.state.pairings.find(p => p.defenderTeam === 'A')!;
+    expect(updated.tableScoreModifier).toBe(0);
   });
 });
